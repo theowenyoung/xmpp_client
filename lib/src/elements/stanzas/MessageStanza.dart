@@ -4,18 +4,21 @@ import 'package:xmpp_stone/src/elements/XmppElement.dart';
 import 'package:xmpp_stone/src/elements/stanzas/AbstractStanza.dart';
 
 class MessageStanza extends AbstractStanza {
-  MessageStanzaType? type;
+  MessageStanzaType type;
 
-  MessageStanza(id, type) {
+  MessageStanza(id, this.type, {String? queryId}) {
     name = 'message';
     this.id = id;
-    this.type = type;
+    if (queryId != null) {
+      this.queryId = queryId;
+    }
     addAttribute(
         XmppAttribute('type', type.toString().split('.').last.toLowerCase()));
   }
 
   String? get body => children
-      .firstWhereOrNull((child) => (child.name == 'body' && child.attributes.isEmpty))
+      .firstWhereOrNull(
+          (child) => (child.name == 'body' && child.attributes.isEmpty))
       ?.textValue;
 
   set body(String? value) {
@@ -36,9 +39,8 @@ class MessageStanza extends AbstractStanza {
     addChild(element);
   }
 
-  String? get thread => children
-      .firstWhereOrNull((child) => (child.name == 'thread'))
-      ?.textValue;
+  String? get thread =>
+      children.firstWhereOrNull((child) => (child.name == 'thread'))?.textValue;
 
   set thread(String? value) {
     var element = XmppElement();
@@ -48,4 +50,11 @@ class MessageStanza extends AbstractStanza {
   }
 }
 
-enum MessageStanzaType { CHAT, ERROR, GROUPCHAT, HEADLINE, NORMAL, UNKOWN }
+enum MessageStanzaType {
+  CHAT,
+  ERROR,
+  GROUPCHAT,
+  HEADLINE,
+  NORMAL,
+  UNKOWN,
+}

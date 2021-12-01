@@ -10,11 +10,14 @@ import 'package:xmpp_stone/src/account/XmppAccountSettings.dart';
 import 'package:xmpp_stone/src/data/Jid.dart';
 import 'package:xmpp_stone/src/elements/nonzas/Nonza.dart';
 import 'package:xmpp_stone/src/elements/stanzas/AbstractStanza.dart';
+import 'package:xmpp_stone/src/elements/stanzas/IqStanza.dart';
 import 'package:xmpp_stone/src/extensions/ping/PingManager.dart';
 import 'package:xmpp_stone/src/features/ConnectionNegotatiorManager.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/CarbonsNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/MAMNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/ServiceDiscoveryNegotiator.dart';
+import 'package:xmpp_stone/src/features/servicediscovery/InboxNegotiator.dart';
+
 import 'package:xmpp_stone/src/features/streammanagement/StreamManagmentModule.dart';
 import 'package:xmpp_stone/src/parser/StanzaParser.dart';
 import 'package:xmpp_stone/src/presence/PresenceManager.dart';
@@ -45,6 +48,17 @@ enum XmppConnectionState {
   WouldLikeToClose,
 }
 
+class Callback {
+  List<Completer> completers = [];
+  String queryId;
+  Callback(this.queryId);
+}
+
+class QueryResult {
+  List<AbstractStanza> stanzas = [];
+  QueryResult(this.stanzas);
+}
+
 class Connection {
   var lock = Lock(reentrant: true);
 
@@ -55,6 +69,8 @@ class Connection {
   XmppAccountSettings account;
 
   StreamManagementModule? streamManagementModule;
+  final Map<String, Callback> _callbacks = {};
+  final Map<String, List<AbstractStanza>> _queryResults = {};
 
   Jid get serverName {
     if (_serverName != null) {
@@ -248,10 +264,10 @@ xml:lang='en'
 
   /// Dispose of the connection so stops all activities and cannot be re-used.
   /// For the connection to be garbage collected.
-  /// 
+  ///
   /// If the Connection instance was created with [getInstance],
   /// you must also call [Connection.removeInstance] after calling [dispose].
-  /// 
+  ///
   /// If you intend to re-use the connection later, consider just calling [close] instead.
   void dispose() {
     close();
@@ -263,6 +279,8 @@ xml:lang='en'
     StreamManagementModule.removeInstance(this);
     CarbonsNegotiator.removeInstance(this);
     MAMNegotiator.removeInstance(this);
+    InboxNegotiator.removeInstance(this);
+
     reconnectionManager?.close();
     _socket?.close();
   }
@@ -325,7 +343,57 @@ xml:lang='en'
           .whereType<xml.XmlElement>()
           .where((element) => stanzaMatcher(element))
           .map((xmlElement) => StanzaParser.parseStanza(xmlElement))
-          .forEach((stanza) => _inStanzaStreamController.add(stanza));
+          .forEach((stanza) {
+        // check if exist queryid
+        //
+
+        // check type
+        if (stanza is MessageStanza) {
+          // message
+          // add to data
+          // success
+          if (stanza.queryId != null) {
+            final queryId = stanza.queryId!;
+            if (_queryResults[queryId] != null) {
+              _queryResults[queryId]!.add(stanza);
+              return;
+            }
+          } else if (stanza.id != null && _queryResults[stanza.id] != null) {
+            _queryResults[stanza.id]!.add(stanza);
+            return;
+          }
+          // TODO drop no body , and not support message type
+
+        } else if (stanza is IqStanza) {
+          // if finish
+          // get id
+          final iqId = stanza.id;
+          // check ok or not
+          if (_callbacks[iqId] != null) {
+            // is ok
+            final callback = _callbacks[iqId]!;
+            if (stanza.type == IqStanzaType.RESULT) {
+              // success
+              // TODO add other query result data
+              callback.completers.forEach((completer) {
+                completer.complete(
+                    QueryResult(_queryResults[callback.queryId] ?? []));
+              });
+            } else {
+              // failed
+              callback.completers.forEach((completer) {
+                completer.completeError(Exception('iq request failed'));
+              });
+            }
+            // clear query result
+            _queryResults.remove(callback.queryId);
+            _callbacks.remove(iqId);
+
+            return;
+          }
+        }
+        return _inStanzaStreamController.add(stanza);
+      });
 
       xmlResponse.descendants
           .whereType<xml.XmlElement>()
@@ -367,6 +435,30 @@ xml:lang='en'
   void writeStanza(AbstractStanza stanza) {
     _outStanzaStreamController.add(stanza);
     write(stanza.buildXmlString());
+  }
+
+  void writeQueryStanza(AbstractStanza stanza, Completer completer) {
+    if (stanza is IqStanza) {
+      // check id and query id
+      if (stanza.id != null && stanza.queryId != null) {
+        final iqId = stanza.id!;
+        final queryId = stanza.queryId!;
+        if (_callbacks[iqId] == null) {
+          _callbacks[iqId] = Callback(queryId);
+        }
+        if (_queryResults[queryId] == null) {
+          _queryResults[queryId] = [];
+        }
+        // TODO timeout;
+        _callbacks[iqId]!.completers.add(completer);
+        _outStanzaStreamController.add(stanza);
+        write(stanza.buildXmlString());
+      } else {
+        print('error, not found iq id or query id stanza');
+      }
+    } else {
+      print('error, not found iq stanza');
+    }
   }
 
   void writeNonza(Nonza nonza) {

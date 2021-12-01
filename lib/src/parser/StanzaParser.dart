@@ -54,8 +54,9 @@ class StanzaParser {
 
   static MessageStanza _parseMessageStanza(String? id, xml.XmlElement element) {
     var typeString = element.getAttribute('type');
-    MessageStanzaType? type;
+    var type = MessageStanzaType.UNKOWN;
     if (typeString == null) {
+      type = MessageStanzaType.UNKOWN;
       Log.w(TAG, 'No type found for message stanza');
     } else {
       switch (typeString) {
@@ -76,7 +77,16 @@ class StanzaParser {
           break;
       }
     }
-    var stanza = MessageStanza(id, type);
+    String? queryId;
+    if (element.firstElementChild != null &&
+        element.firstElementChild!.name.local == 'result') {
+      if (element.firstElementChild!.getAttribute('queryid') != null) {
+        queryId = element.firstElementChild!.getAttribute('queryid');
+      } else if (element.firstElementChild!.getAttribute('id') != null) {
+        queryId = element.firstElementChild!.getAttribute('id');
+      }
+    }
+    var stanza = MessageStanza(id, type, queryId: queryId);
 
     return stanza;
   }

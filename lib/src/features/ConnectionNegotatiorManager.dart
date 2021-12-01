@@ -12,6 +12,7 @@ import 'package:xmpp_stone/src/features/sasl/SaslAuthenticationFeature.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/CarbonsNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/Feature.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/MAMNegotiator.dart';
+import 'package:xmpp_stone/src/features/servicediscovery/InboxNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/ServiceDiscoveryNegotiator.dart';
 import 'package:xml/xml.dart' as xml;
 import 'package:xmpp_stone/src/features/streammanagement/StreamManagmentModule.dart';
@@ -47,6 +48,7 @@ class ConnectionNegotiatorManager {
         .whereType<xml.XmlElement>()
         .map((element) => Nonza.parse(element))
         .toList();
+    print("nonzas $nonzas");
     supportedNegotiatorList.forEach((negotiator) {
       var matchingNonzas = negotiator.match(nonzas);
       if (matchingNonzas != null && matchingNonzas.isNotEmpty) {
@@ -113,7 +115,7 @@ class ConnectionNegotiatorManager {
     //     .add(ServiceDiscoveryNegotiator.getInstance(_connection));
     supportedNegotiatorList.add(CarbonsNegotiator.getInstance(_connection));
     supportedNegotiatorList.add(MAMNegotiator.getInstance(_connection));
-
+    supportedNegotiatorList.add(InboxNegotiator.getInstance(_connection));
   }
 
   void stateListener(NegotiatorState state) {

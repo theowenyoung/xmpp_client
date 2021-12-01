@@ -7,7 +7,11 @@ class IqParser {
 
   static IqStanza parseIqStanza(String? id, xml.XmlElement element) {
     var typeString = element.getAttribute('type');
-    return IqStanza(id, _parseIqType(typeString));
+    String? queryId;
+    if (typeString == 'result' && element.getAttribute('id') != null) {
+      queryId = element.getAttribute('id');
+    }
+    return IqStanza(id, _parseIqType(typeString), queryId: queryId);
   }
 
   static IqStanzaType _parseIqType(String? typeString) {

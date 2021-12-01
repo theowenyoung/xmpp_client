@@ -5,10 +5,13 @@ import 'AbstractStanza.dart';
 class IqStanza extends AbstractStanza {
   IqStanzaType type = IqStanzaType.SET;
 
-  IqStanza(String? id, IqStanzaType type) {
+  IqStanza(String? id, IqStanzaType type, {String? queryId}) {
     name = 'iq';
     this.id = id;
     this.type = type;
+    if (queryId != null) {
+      this.queryId = queryId;
+    }
     addAttribute(
         XmppAttribute('type', type.toString().split('.').last.toLowerCase()));
   }

@@ -8,7 +8,7 @@ abstract class AbstractStanza extends XmppElement {
   String? _id;
   Jid? _fromJid;
   Jid? _toJid;
-
+  String? queryId;
   Jid? get fromJid => _fromJid;
 
   set fromJid(Jid? value) {

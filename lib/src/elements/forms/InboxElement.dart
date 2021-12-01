@@ -2,20 +2,14 @@ import 'package:xmpp_stone/src/elements/forms/XElement.dart';
 import '../XmppAttribute.dart';
 import '../XmppElement.dart';
 
-class QueryElement extends XmppElement {
-  QueryElement() {
-    name = 'query';
+class InboxElement extends XmppElement {
+  InboxElement() {
+    name = 'inbox';
+    addAttribute(XmppAttribute('xmlns', 'erlang-solutions.com:xmpp:inbox:0'));
   }
 
   void addX(XElement xElement) {
     addChild(xElement);
-  }
-
-  void addRead() {
-    final readElement = XmppElement();
-    readElement.name = 'read';
-    readElement.textValue = 'true';
-    addChild(readElement);
   }
 
   void setXmlns(String xmlns) {
