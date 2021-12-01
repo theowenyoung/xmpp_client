@@ -27,7 +27,8 @@ class ReconnectionManager {
     if (state == XmppConnectionState.ForcefullyClosed) {
       Log.d(TAG, 'Connection forcefully closed!'); //connection lost
       handleReconnection();
-    } else if (state == XmppConnectionState.SocketOpening) {
+    } else if (state == XmppConnectionState.SocketOpening ||
+        state == XmppConnectionState.SocketOpened) {
       //do nothing
     } else if (state != XmppConnectionState.Reconnecting) {
       isActive = false;
