@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:xmpp_stone/src/Connection.dart';
 import 'package:xmpp_stone/src/data/Jid.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
@@ -54,8 +55,8 @@ class RoomManager {
   Future<List<Room>> getAllRooms() async {
     final inboxManager = _connection.getInboxModule();
     final queryResult = await inboxManager.queryAll();
-    if (queryResult.stanzas.isNotEmpty) {
-      return queryResult.stanzas.where((stanza) {
+    if (queryResult.messages.isNotEmpty) {
+      return queryResult.messages.where((stanza) {
         return Message.fromStanza(stanza as MessageStanza,
                 currentAccountJid: _connection.fullJid) !=
             null;
@@ -84,6 +85,44 @@ class RoomManager {
     stanza.toJid = Jid.fromFullJid(roomId);
     stanza.fromJid = _connection.fullJid;
     stanza.body = text;
+    var message =
+        Message.fromStanza(stanza, currentAccountJid: _connection.fullJid);
+    if (message != null) {
+      _roomMessageUpdatedStreamController.add(Event(roomId, message));
+      _connection.writeStanza(stanza);
+    }
+  }
+
+  Future<void> sendFileMessage(String roomId,
+      {required String mimeType,
+      required String fileName,
+      required int size,
+      required String filePath,
+      int? height,
+      int? width}) async {
+    // get file slot
+    print('path: $filePath');
+    final httpUploadModule = _connection.getHttpUploadModule();
+    final uploadResult = await httpUploadModule.uploadFile(
+        mimeType: mimeType, fileName: fileName, size: size, filePath: filePath);
+    print("uploadResult: ${uploadResult.url}");
+    var stanza =
+        MessageStanza(AbstractStanza.getRandomId(), MessageStanzaType.CHAT);
+    stanza.toJid = Jid.fromFullJid(roomId);
+    stanza.fromJid = _connection.fullJid;
+    stanza.body = 'images';
+    if (mimeType.startsWith('image/') && height != null && width != null) {
+      stanza.setImages([
+        MessageImage(
+            url: uploadResult.url,
+            height: height,
+            width: width,
+            size: size,
+            mimeType: mimeType,
+            name: fileName)
+      ]);
+    }
+
     var message =
         Message.fromStanza(stanza, currentAccountJid: _connection.fullJid);
     if (message != null) {
@@ -124,8 +163,8 @@ class RoomManager {
         afterId: afterId,
         limit: limit,
         sort: sort);
-    if (queryResult.stanzas.isNotEmpty) {
-      return queryResult.stanzas.where((stanza) {
+    if (queryResult.messages.isNotEmpty) {
+      return queryResult.messages.where((stanza) {
         return Message.fromStanza(stanza as MessageStanza,
                 currentAccountJid: _connection.fullJid) !=
             null;

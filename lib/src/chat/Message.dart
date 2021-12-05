@@ -14,6 +14,7 @@ class MessageRoom {
 class Message {
   static String TAG = 'Message';
   MessageStanza messageStanza;
+  XmppElement? bareMessageStanza;
   Jid to;
   Jid from;
   late String toId;
@@ -23,6 +24,7 @@ class Message {
   String id;
   String? serverId;
   MessageRoom room;
+  List<MessageImage>? images;
 
   Message(this.id, this.messageStanza,
       {required this.text,
@@ -30,6 +32,8 @@ class Message {
       required this.from,
       required this.createdAt,
       required this.room,
+      this.bareMessageStanza,
+      this.images,
       this.serverId}) {
     toId = to.userAtDomain;
     fromId = from.userAtDomain;
@@ -49,6 +53,64 @@ class Message {
     }
     message ??=
         _parseRegularMessage(stanza, currentAccountJid: currentAccountJid);
+    // common atrributes
+    if (message?.bareMessageStanza != null) {
+      final bareMessageStanza = message!.bareMessageStanza!;
+      final children = bareMessageStanza.children;
+      // parse message images
+      final fileSharingElement = children.firstWhereOrNull((element) =>
+          element.name == 'file-sharing' &&
+          element.namespace == 'urn:xmpp:sfs:0');
+      if (fileSharingElement != null) {
+        // image
+        final fileElement = fileSharingElement.getChild('file');
+        if (fileElement != null) {
+          final mimeType = fileElement.getChild('media-type')?.textValue;
+          final name = fileElement.getChild('name')?.textValue;
+          final sizeString = fileElement.getChild('size')?.textValue;
+          final dimensions = fileElement.getChild('dimensions')?.textValue;
+          if (dimensions != null) {
+            final dimensionsSplit = dimensions.split('x');
+            if (dimensionsSplit.length == 2) {
+              final width = int.tryParse(dimensionsSplit[0]);
+              final height = int.tryParse(dimensionsSplit[1]);
+
+              final url = fileSharingElement
+                  .getChild("sources")
+                  ?.getChild("url-data")
+                  ?.textValue;
+              if (sizeString != null) {
+                final size = int.tryParse(sizeString);
+
+                if (mimeType != null &&
+                    name != null &&
+                    url != null &&
+                    size != null &&
+                    width != null &&
+                    height != null) {
+                  // image
+                  if (mimeType.startsWith('image/')) {
+                    // image
+
+                    message.images = [
+                      MessageImage(
+                        mimeType: mimeType,
+                        name: name,
+                        size: size,
+                        width: width,
+                        height: height,
+                        url: url,
+                      )
+                    ];
+                  }
+                }
+              }
+            }
+          }
+          // message.images = [MessageImage(url: urlElement.textValue!)];
+        }
+      }
+    }
     return message;
   }
 
@@ -76,7 +138,9 @@ class Message {
             final roomJid =
                 currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
             final roomId = roomJid.userAtDomain;
+            final bareMessageStanza = message;
             return Message(id, stanza,
+                bareMessageStanza: bareMessageStanza,
                 text: body,
                 to: to,
                 from: from,
@@ -124,6 +188,7 @@ class Message {
                 currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
             final roomId = roomJid.userAtDomain;
             return Message(id, stanza,
+                bareMessageStanza: message,
                 text: body,
                 to: to,
                 from: from,
@@ -156,6 +221,7 @@ class Message {
           currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
       final roomId = roomJid.userAtDomain;
       return Message(id, message,
+          bareMessageStanza: message,
           text: body,
           to: to,
           from: from,

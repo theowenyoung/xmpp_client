@@ -86,7 +86,7 @@ class StanzaParser {
         queryId = element.firstElementChild!.getAttribute('id');
       }
     }
-    var stanza = MessageStanza(id, type, queryId: queryId);
+    final stanza = MessageStanza(id, type, queryId: queryId);
 
     return stanza;
   }

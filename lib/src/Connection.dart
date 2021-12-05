@@ -50,13 +50,14 @@ enum XmppConnectionState {
 
 class Callback {
   List<Completer> completers = [];
-  String queryId;
-  Callback(this.queryId);
+  String? queryId;
+  Callback({this.queryId});
 }
 
 class QueryResult {
-  List<AbstractStanza> stanzas = [];
-  QueryResult(this.stanzas);
+  List<AbstractStanza> messages = [];
+  IqStanza iq;
+  QueryResult(this.messages, this.iq);
 }
 
 class Connection {
@@ -98,6 +99,7 @@ class Connection {
   String? errorMessage;
 
   bool authenticated = false;
+  bool firstAuthenticated = false;
 
   final StreamController<AbstractStanza?> _inStanzaStreamController =
       StreamController.broadcast();
@@ -140,6 +142,7 @@ class Connection {
 
   void fullJidRetrieved(Jid jid) {
     account.resource = jid.resource;
+    account.resourceBinded = true;
   }
 
   Socket? _socket;
@@ -167,7 +170,7 @@ class Connection {
 <?xml version='1.0'?>
 <stream:stream xmlns='jabber:client' version='1.0' xmlns:stream='http://etherx.jabber.org/streams'
 to='${fullJid.domain}'
-xml:lang='en'
+xml:lang='zh'
 >
 """;
     write(streamOpeningString);
@@ -376,17 +379,23 @@ xml:lang='en'
               // success
               // TODO add other query result data
               callback.completers.forEach((completer) {
-                completer.complete(
-                    QueryResult(_queryResults[callback.queryId] ?? []));
+                completer.complete(QueryResult(
+                    callback.queryId != null
+                        ? _queryResults[callback.queryId] ?? []
+                        : [],
+                    stanza));
               });
             } else {
               // failed
+              // TODO exception iq text, and error data
               callback.completers.forEach((completer) {
-                completer.completeError(Exception('iq request failed'));
+                completer.completeError(Exception('request failed'));
               });
             }
             // clear query result
-            _queryResults.remove(callback.queryId);
+            if (callback.queryId != null) {
+              _queryResults.remove(callback.queryId);
+            }
             _callbacks.remove(iqId);
 
             return;
@@ -412,6 +421,9 @@ xml:lang='en'
 
   void processInitialStream(xml.XmlElement initialStream) {
     Log.d(TAG, 'processInitialStream');
+    if (firstAuthenticated) {
+      authenticated = true;
+    }
     var from = initialStream.getAttribute('from');
     if (from != null) {
       _serverName = from;
@@ -426,38 +438,47 @@ xml:lang='en'
   }
 
   void write(message) {
-    Log.xmppp_sending(message);
     if (isOpened()) {
       _socket!.write(message);
+      Log.xmppp_sending(message);
+    } else {
+      Log.i('socket', 'Send Message Failed, Socket closed');
+      throw Exception('Send Message Failed, Connection losed');
     }
   }
 
   void writeStanza(AbstractStanza stanza) {
-    _outStanzaStreamController.add(stanza);
     write(stanza.buildXmlString());
+    _outStanzaStreamController.add(stanza);
   }
 
   void writeQueryStanza(AbstractStanza stanza, Completer completer) {
     if (stanza is IqStanza) {
       // check id and query id
-      if (stanza.id != null && stanza.queryId != null) {
+      if (stanza.id != null) {
         final iqId = stanza.id!;
-        final queryId = stanza.queryId!;
+        final queryId = stanza.queryId;
+
+        if (queryId != null) {
+          if (_queryResults[queryId] == null) {
+            _queryResults[queryId] = [];
+          }
+        }
         if (_callbacks[iqId] == null) {
-          _callbacks[iqId] = Callback(queryId);
+          _callbacks[iqId] = Callback(queryId: queryId);
         }
-        if (_queryResults[queryId] == null) {
-          _queryResults[queryId] = [];
-        }
+
         // TODO timeout;
         _callbacks[iqId]!.completers.add(completer);
-        _outStanzaStreamController.add(stanza);
         write(stanza.buildXmlString());
+        _outStanzaStreamController.add(stanza);
       } else {
         print('error, not found iq id or query id stanza');
+        throw Exception('Can not found request id');
       }
     } else {
       print('error, not found iq stanza');
+      throw Exception('Can not found request content');
     }
   }
 
@@ -479,10 +500,12 @@ xml:lang='en'
 
   void _processState(XmppConnectionState state) {
     if (state == XmppConnectionState.Authenticated) {
-      authenticated = true;
+      firstAuthenticated = true;
+      // authenticated = true;
       _openStream();
     } else if (state == XmppConnectionState.Closed ||
         state == XmppConnectionState.ForcefullyClosed) {
+      firstAuthenticated = false;
       authenticated = false;
     }
   }

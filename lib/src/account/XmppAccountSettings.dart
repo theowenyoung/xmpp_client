@@ -5,6 +5,7 @@ class XmppAccountSettings {
   String username;
   String domain;
   String? resource = '';
+  bool resourceBinded = false;
   String password;
   String? host;
   int port;
@@ -13,7 +14,9 @@ class XmppAccountSettings {
   bool ackEnabled = true;
   bool smResumable = true;
 
-  XmppAccountSettings(this.name, this.username, this.domain, this.password, this.port, {this.host, this.resource} );
+  XmppAccountSettings(
+      this.name, this.username, this.domain, this.password, this.port,
+      {this.host, this.resource});
 
   Jid get fullJid => Jid(username, domain, resource);
 

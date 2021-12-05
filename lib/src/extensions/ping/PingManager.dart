@@ -5,7 +5,6 @@ import 'package:xmpp_stone/src/elements/stanzas/IqStanza.dart';
 import 'package:xmpp_stone/src/Connection.dart';
 
 class PingManager {
-
   final Connection _connection;
 
   static final Map<Connection, PingManager> _instances = {};
@@ -49,8 +48,6 @@ class PingManager {
           iqStanza.toJid = stanza.fromJid;
           _connection.writeStanza(iqStanza);
         }
-      } else if (stanza.type == IqStanzaType.ERROR) {
-        //todo handle error cases
       }
     }
   }

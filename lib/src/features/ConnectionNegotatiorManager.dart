@@ -48,12 +48,19 @@ class ConnectionNegotiatorManager {
         .whereType<xml.XmlElement>()
         .map((element) => Nonza.parse(element))
         .toList();
-    print("nonzas $nonzas");
     supportedNegotiatorList.forEach((negotiator) {
       var matchingNonzas = negotiator.match(nonzas);
       if (matchingNonzas != null && matchingNonzas.isNotEmpty) {
-        waitingNegotiators
-            .add(NegotiatorWithSupportedNonzas(negotiator, matchingNonzas));
+        // only authenticator can add stream feature
+        if (negotiator.expectedName == 'StreamManagementModule') {
+          if (_connection.authenticated) {
+            waitingNegotiators
+                .add(NegotiatorWithSupportedNonzas(negotiator, matchingNonzas));
+          }
+        } else {
+          waitingNegotiators
+              .add(NegotiatorWithSupportedNonzas(negotiator, matchingNonzas));
+        }
       }
     });
     if (_connection.authenticated) {
@@ -89,6 +96,7 @@ class ConnectionNegotiatorManager {
         activeSubscription =
             activeNegotiator!.featureStateStream.listen(stateListener);
       } catch (e) {
+        print('e: listen active negotiator  subscription failed, $e');
         // Stream has already been listened to this listener
       }
     } else {
@@ -108,9 +116,13 @@ class ConnectionNegotiatorManager {
     }
     supportedNegotiatorList
         .add(BindingResourceConnectionNegotiator(_connection));
-    supportedNegotiatorList
-        .add(streamManagement); //doesn't care if success it will be done
+
+    if (!streamManagement.isResumeAvailable()) {
+      supportedNegotiatorList.add(streamManagement);
+    }
+
     supportedNegotiatorList.add(SessionInitiationNegotiator(_connection));
+
     // supportedNegotiatorList
     //     .add(ServiceDiscoveryNegotiator.getInstance(_connection));
     supportedNegotiatorList.add(CarbonsNegotiator.getInstance(_connection));
@@ -131,14 +143,21 @@ class ConnectionNegotiatorManager {
   NegotiatorWithSupportedNonzas? pickNextNegotiator() {
     if (waitingNegotiators.isEmpty) return null;
     var negotiatorWithData = waitingNegotiators.firstWhere((element) {
+      final negotiatorName = element!.negotiator.expectedName;
+      if (negotiatorName != null &&
+          negotiatorName == 'StreamManagementModule') {
+        print('StreamManagementModule again');
+      }
       Log.d(TAG,
-          'Found matching negotiator ${element!.negotiator.isReady().toString()}');
+          'Found matching negotiator ${element.negotiator.expectedName ?? ''} ${element.negotiator.isReady().toString()}');
       return element.negotiator.isReady();
     }, orElse: () {
       Log.d(TAG, 'No matching negotiator');
       return null;
     });
+
     waitingNegotiators.remove(negotiatorWithData);
+    print('waitingNegotiators length: ${waitingNegotiators.length}');
     return negotiatorWithData;
   }
 

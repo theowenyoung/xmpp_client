@@ -1,5 +1,13 @@
 ## XmppStone
 
+WIP.
+
+## TODO
+
+- https://xmpp.org/extensions/xep-0363.html (upload)
+- https://xmpp.org/extensions/xep-0393.html
+- https://xmpp.org/extensions/xep-0066.html
+- https://xmpp.org/extensions/xep-0447.html
 Lightweight XMPP client library written completely in Dart.
 My intention is to write simple to use library for future XMPP client based on Flutter.
 

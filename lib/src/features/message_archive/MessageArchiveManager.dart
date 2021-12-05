@@ -58,14 +58,15 @@ class MessageArchiveManager {
     if (start == null && end == null && jid == null) {
       return queryAll();
     } else {
-      var queryId = AbstractStanza.getRandomId();
-      var iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET,
+      final queryId = AbstractStanza.getRandomId();
+      final iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET,
           queryId: queryId);
-      var query = QueryElement();
+      final query = QueryElement();
       query.setXmlns('urn:xmpp:mam:2');
       query.setQueryId(queryId);
       iqStanza.addChild(query);
-      var x = XElement.build();
+      final x = XElement();
+      x.setNs('jabber:x:data');
       x.setType(FormType.SUBMIT);
       query.addChild(x);
       x.addField(FieldElement.build(
@@ -97,13 +98,14 @@ class MessageArchiveManager {
     if (beforeId == null && afterId == null && jid == null) {
       return queryAll();
     } else {
-      var queryId = AbstractStanza.getRandomId();
-      var iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET,
+      final queryId = AbstractStanza.getRandomId();
+      final iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET,
           queryId: queryId);
-      var query = QueryElement();
+      final query = QueryElement();
       query.setXmlns('urn:xmpp:mam:2');
       query.setQueryId(queryId);
-      var x = XElement.build();
+      final x = XElement();
+      x.setNs('jabber:x:data');
       x.setType(FormType.SUBMIT);
       query.addChild(x);
       x.addField(FieldElement.build(

@@ -26,3 +26,5 @@ export 'src/elements/XmppElement.dart';
 export 'src/elements/XmppAttribute.dart';
 export 'src/features/message_archive/MessageArchiveManager.dart';
 export 'src/types.dart';
+export 'src/features/HttpUpload.dart';
+export 'src/features/streammanagement/StreamManagmentModule.dart';

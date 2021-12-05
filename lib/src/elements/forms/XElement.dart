@@ -7,9 +7,12 @@ class XElement extends XmppElement {
     name = 'x';
   }
 
-  XElement.build() {
-    name = 'x';
-    addAttribute(XmppAttribute('xmlns', 'jabber:x:data'));
+  void setNs(String ns) {
+    addAttribute(XmppAttribute('xmlns', ns));
+  }
+
+  String? getNs() {
+    return getAttribute('xmlns')?.value;
   }
 
   void setType(FormType type) {
