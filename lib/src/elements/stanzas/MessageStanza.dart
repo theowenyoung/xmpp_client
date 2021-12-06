@@ -5,20 +5,29 @@ import 'package:xmpp_stone/src/elements/stanzas/AbstractStanza.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
 import '../forms/XElement.dart';
 
-class MessageImage {
+class MessageFile {
   String url;
-  int height;
-  int width;
   int size;
   String mimeType;
   String name;
-  MessageImage(
+  MessageFile(
       {required this.url,
-      required this.height,
-      required this.width,
       required this.size,
       required this.name,
       required this.mimeType});
+}
+
+class MessageImage extends MessageFile {
+  double height;
+  double width;
+  MessageImage(
+      {required this.height,
+      required this.width,
+      required String mimeType,
+      required int size,
+      required String url,
+      required String name})
+      : super(mimeType: mimeType, size: size, name: name, url: url);
 }
 
 class MessageStanza extends AbstractStanza {
@@ -34,8 +43,8 @@ class MessageStanza extends AbstractStanza {
         XmppAttribute('type', type.toString().split('.').last.toLowerCase()));
   }
 
-  void setImages(List<MessageImage> images) {
-    if (images.isNotEmpty) {
+  void setFiles(List<MessageFile> files, {String? dimensions}) {
+    if (files.isNotEmpty) {
       // jabber:x:oob is the namespace for out of band data
       // for clients do not support stateless https://xmpp.org/extensions/xep-0447.html
       final element = XmppElement();
@@ -43,7 +52,7 @@ class MessageStanza extends AbstractStanza {
       element.addAttribute(XmppAttribute('xmlns', 'jabber:x:oob'));
       final urlElement = XmppElement();
       urlElement.name = 'url';
-      urlElement.textValue = images[0].url;
+      urlElement.textValue = files[0].url;
       element.addChild(urlElement);
       addChild(element);
 
@@ -57,20 +66,30 @@ class MessageStanza extends AbstractStanza {
       fileElement.name = 'file';
       fileElement.namespace = 'urn:xmpp:file:metadata:0';
 
-      fileElement.addChild(XmppElement('media-type', images[0].mimeType));
-      fileElement.addChild(XmppElement('name', images[0].name));
-      fileElement.addChild(XmppElement('size', images[0].size.toString()));
-      fileElement.addChild(
-          XmppElement('dimensions', '${images[0].width}x${images[0].height}'));
+      fileElement.addChild(XmppElement('media-type', files[0].mimeType));
+      fileElement.addChild(XmppElement('name', files[0].name));
+      fileElement.addChild(XmppElement('size', files[0].size.toString()));
+      if (dimensions != null) {
+        fileElement.addChild(XmppElement('dimensions', dimensions));
+      }
+
       fileSharingElement.addChild(fileElement);
       // add sources
       final sourcesElement = XmppElement('sources');
-      final urlDataElement = XmppElement('url-data', images[0].url);
+      final urlDataElement = XmppElement('url-data', files[0].url);
       urlDataElement.namespace = 'http://jabber.org/protocol/url-data';
-      urlDataElement.addAttribute(XmppAttribute('target', images[0].url));
+      urlDataElement.addAttribute(XmppAttribute('target', files[0].url));
       sourcesElement.addChild(urlDataElement);
       fileSharingElement.addChild(sourcesElement);
       addChild(fileSharingElement);
+    }
+  }
+
+  void setImages(List<MessageImage> files) {
+    if (files.isNotEmpty) {
+      final dimensions = '${files[0].width}x${files[0].height}';
+
+      setFiles(files, dimensions: dimensions);
     }
   }
 

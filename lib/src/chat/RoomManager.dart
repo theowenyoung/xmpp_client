@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:xmpp_stone/src/Connection.dart';
 import 'package:xmpp_stone/src/data/Jid.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
@@ -31,7 +30,7 @@ class RoomManager {
       StreamController.broadcast();
 
   RoomManager(this._connection) {
-    _connection.inStanzasStream
+    _connection.inStanzasWithNoQueryStream
         .where((abstractStanza) => abstractStanza is MessageStanza)
         .map((stanza) => stanza as MessageStanza?)
         .listen((stanza) {
@@ -39,13 +38,8 @@ class RoomManager {
       var message =
           Message.fromStanza(stanza!, currentAccountJid: _connection.fullJid);
       if (message != null) {
-        // find jid different from mine
-        final roomJid =
-            _connection.fullJid.userAtDomain == message.to.userAtDomain
-                ? message.from
-                : message.to;
         // check if room exists
-        final roomId = roomJid.userAtDomain;
+        final roomId = message.room.id;
         _roomMessageUpdatedStreamController.add(Event(roomId, message));
       }
 
@@ -79,55 +73,125 @@ class RoomManager {
     }
   }
 
-  void sendMessage(String roomId, String text) {
+  Message createTextMessage(String roomId, String text) {
+    // if login
+    final id = AbstractStanza.getRandomId();
+    return Message(id,
+        status: MessageStatus.init,
+        text: text,
+        room: MessageRoom(roomId),
+        from: _connection.fullJid,
+        createdAt: DateTime.now());
+  }
+
+  void sendMessage(String roomId, Message message) {
+    final messageStanza = message.toStanza();
+
+    _connection.writeStanza(messageStanza);
+  }
+
+  Message createFileMessage(
+    String roomId, {
+    required String mimeType,
+    required String fileName,
+    required int size,
+    required String filePath,
+  }) {
+    print('path: $filePath');
+
     var stanza =
         MessageStanza(AbstractStanza.getRandomId(), MessageStanzaType.CHAT);
     stanza.toJid = Jid.fromFullJid(roomId);
     stanza.fromJid = _connection.fullJid;
-    stanza.body = text;
-    var message =
+    stanza.body = 'file';
+    stanza.setFiles([
+      MessageFile(url: filePath, size: size, mimeType: mimeType, name: fileName)
+    ]);
+    final message =
         Message.fromStanza(stanza, currentAccountJid: _connection.fullJid);
     if (message != null) {
-      _roomMessageUpdatedStreamController.add(Event(roomId, message));
-      _connection.writeStanza(stanza);
+      return message;
+    } else {
+      throw Exception('invalid file');
     }
   }
 
-  Future<void> sendFileMessage(String roomId,
+  Message createImageMessage(String roomId,
       {required String mimeType,
       required String fileName,
       required int size,
       required String filePath,
-      int? height,
-      int? width}) async {
+      required double height,
+      required double width}) {
     // get file slot
     print('path: $filePath');
-    final httpUploadModule = _connection.getHttpUploadModule();
-    final uploadResult = await httpUploadModule.uploadFile(
-        mimeType: mimeType, fileName: fileName, size: size, filePath: filePath);
-    print("uploadResult: ${uploadResult.url}");
+
     var stanza =
         MessageStanza(AbstractStanza.getRandomId(), MessageStanzaType.CHAT);
     stanza.toJid = Jid.fromFullJid(roomId);
     stanza.fromJid = _connection.fullJid;
-    stanza.body = 'images';
-    if (mimeType.startsWith('image/') && height != null && width != null) {
+    stanza.body = 'image';
+    if (mimeType.startsWith('image/')) {
       stanza.setImages([
         MessageImage(
-            url: uploadResult.url,
+            url: filePath,
             height: height,
             width: width,
             size: size,
             mimeType: mimeType,
             name: fileName)
       ]);
+      final message =
+          Message.fromStanza(stanza, currentAccountJid: _connection.fullJid);
+      if (message != null) {
+        return message;
+      } else {
+        throw Exception('invalid image');
+      }
+    } else {
+      throw Exception('invalid image');
     }
+  }
 
-    var message =
-        Message.fromStanza(stanza, currentAccountJid: _connection.fullJid);
-    if (message != null) {
-      _roomMessageUpdatedStreamController.add(Event(roomId, message));
-      _connection.writeStanza(stanza);
+  Future<void> sendFileMessage(String roomId, Message message) async {
+    if (message.images != null && message.images!.isNotEmpty) {
+      final file = message.images!.first;
+      final filePath = file.url;
+      final mimeType = file.mimeType;
+      final fileName = file.name;
+      final size = file.size;
+
+      // get file slot
+      print('path: $filePath');
+      final httpUploadModule = _connection.getHttpUploadModule();
+      final uploadResult = await httpUploadModule.uploadFile(
+          mimeType: mimeType,
+          fileName: fileName,
+          size: size,
+          filePath: filePath);
+      // change url
+      message.images!.first.url = uploadResult.url;
+      _connection.writeStanza(message.toStanza());
+    } else if (message.files != null && message.files!.isNotEmpty) {
+      final file = message.files!.first;
+      final filePath = file.url;
+      final mimeType = file.mimeType;
+      final fileName = file.name;
+      final size = file.size;
+
+      // get file slot
+      print('path: $filePath');
+      final httpUploadModule = _connection.getHttpUploadModule();
+      final uploadResult = await httpUploadModule.uploadFile(
+          mimeType: mimeType,
+          fileName: fileName,
+          size: size,
+          filePath: filePath);
+      // change url
+      message.files!.first.url = uploadResult.url;
+      _connection.writeStanza(message.toStanza());
+    } else {
+      throw Exception('invalid file');
     }
   }
 

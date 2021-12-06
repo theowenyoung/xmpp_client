@@ -11,13 +11,14 @@ class MessageRoom {
   MessageRoom(this.id, {this.unreadCount});
 }
 
+enum MessageStatus { delivered, error, seen, sending, sent, init }
+
 class Message {
   static String TAG = 'Message';
-  MessageStanza messageStanza;
+  late MessageStanza messageStanza;
+  MessageStatus status;
   XmppElement? bareMessageStanza;
-  Jid to;
-  Jid from;
-  late String toId;
+  late Jid from;
   late String fromId;
   String text;
   DateTime createdAt;
@@ -25,18 +26,46 @@ class Message {
   String? serverId;
   MessageRoom room;
   List<MessageImage>? images;
+  List<MessageFile>? files;
 
-  Message(this.id, this.messageStanza,
+  Message(this.id,
       {required this.text,
-      required this.to,
-      required this.from,
+      Jid? from,
+      String? fromId,
       required this.createdAt,
       required this.room,
+      this.status = MessageStatus.init,
       this.bareMessageStanza,
+      MessageStanza? messageStanza,
       this.images,
       this.serverId}) {
-    toId = to.userAtDomain;
-    fromId = from.userAtDomain;
+    if (from != null) {
+      this.from = from;
+      this.fromId = from.userAtDomain;
+    } else if (fromId != null) {
+      this.fromId = fromId;
+      this.from = Jid.fromFullJid(fromId);
+    } else {
+      throw Exception('fromId or from must be provided');
+    }
+    if (messageStanza != null) {
+      this.messageStanza = messageStanza;
+    } else {
+      this.messageStanza = toStanza();
+    }
+  }
+  MessageStanza toStanza() {
+    final stanza = MessageStanza(id, MessageStanzaType.CHAT);
+    stanza.toJid = Jid.fromFullJid(room.id);
+    stanza.fromJid = from;
+    stanza.body = text;
+    if (images != null && images!.isNotEmpty) {
+      stanza.setImages(images!);
+    }
+    if (files != null && files!.isNotEmpty) {
+      stanza.setFiles(files!);
+    }
+    return stanza;
   }
 
   static Message? fromStanza(MessageStanza stanza,
@@ -69,27 +98,27 @@ class Message {
           final name = fileElement.getChild('name')?.textValue;
           final sizeString = fileElement.getChild('size')?.textValue;
           final dimensions = fileElement.getChild('dimensions')?.textValue;
-          if (dimensions != null) {
-            final dimensionsSplit = dimensions.split('x');
-            if (dimensionsSplit.length == 2) {
-              final width = int.tryParse(dimensionsSplit[0]);
-              final height = int.tryParse(dimensionsSplit[1]);
 
-              final url = fileSharingElement
-                  .getChild("sources")
-                  ?.getChild("url-data")
-                  ?.textValue;
-              if (sizeString != null) {
-                final size = int.tryParse(sizeString);
+          final url = fileSharingElement
+              .getChild("sources")
+              ?.getChild("url-data")
+              ?.textValue;
+          if (sizeString != null) {
+            final size = int.tryParse(sizeString);
 
-                if (mimeType != null &&
-                    name != null &&
-                    url != null &&
-                    size != null &&
-                    width != null &&
-                    height != null) {
+            if (mimeType != null &&
+                mimeType.startsWith('image/') &&
+                dimensions != null) {
+              final dimensionsSplit = dimensions.split('x');
+              if (dimensionsSplit.length == 2) {
+                final width = double.tryParse(dimensionsSplit[0]);
+                final height = double.tryParse(dimensionsSplit[1]);
+
+                if (name != null && url != null && size != null) {
                   // image
-                  if (mimeType.startsWith('image/')) {
+                  if (mimeType.startsWith('image/') &&
+                      width != null &&
+                      height != null) {
                     // image
 
                     message.images = [
@@ -105,12 +134,25 @@ class Message {
                   }
                 }
               }
+            } else if (mimeType != null &&
+                name != null &&
+                url != null &&
+                size != null) {
+              message.files = [
+                MessageFile(
+                  mimeType: mimeType,
+                  name: name,
+                  size: size,
+                  url: url,
+                )
+              ];
             }
           }
-          // message.images = [MessageImage(url: urlElement.textValue!)];
         }
+        // message.images = [MessageImage(url: urlElement.textValue!)];
       }
     }
+
     return message;
   }
 
@@ -139,13 +181,14 @@ class Message {
                 currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
             final roomId = roomJid.userAtDomain;
             final bareMessageStanza = message;
-            return Message(id, stanza,
+            return Message(id,
                 bareMessageStanza: bareMessageStanza,
+                messageStanza: stanza,
                 text: body,
-                to: to,
                 from: from,
                 createdAt: dateTime,
-                room: MessageRoom(roomId));
+                room: MessageRoom(roomId),
+                status: MessageStatus.delivered);
           }
         }
       }
@@ -187,13 +230,14 @@ class Message {
             final roomJid =
                 currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
             final roomId = roomJid.userAtDomain;
-            return Message(id, stanza,
+            return Message(id,
                 bareMessageStanza: message,
+                messageStanza: stanza,
                 text: body,
-                to: to,
                 from: from,
                 createdAt: dateTime,
                 serverId: serverId,
+                status: MessageStatus.delivered,
                 room: MessageRoom(roomId, unreadCount: roomUnreadCount));
           }
         }
@@ -220,12 +264,13 @@ class Message {
       final roomJid =
           currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
       final roomId = roomJid.userAtDomain;
-      return Message(id, message,
+      return Message(id,
           bareMessageStanza: message,
+          messageStanza: message,
           text: body,
-          to: to,
           from: from,
           createdAt: dateTime,
+          status: MessageStatus.delivered,
           room: MessageRoom(roomId));
     }
     return null;

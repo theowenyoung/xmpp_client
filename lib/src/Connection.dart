@@ -106,6 +106,12 @@ class Connection {
 
   final StreamController<AbstractStanza> _outStanzaStreamController =
       StreamController.broadcast();
+  // no query result, filter out iq, write query
+  final StreamController<AbstractStanza?> _inStanzaWithNoQueryStreamController =
+      StreamController.broadcast();
+  Stream<AbstractStanza?> get inStanzasWithNoQueryStream {
+    return _inStanzaWithNoQueryStreamController.stream;
+  }
 
   final StreamController<Nonza> _inNonzaStreamController =
       StreamController.broadcast();
@@ -153,14 +159,14 @@ class Connection {
   }
 
   XmppConnectionState _state = XmppConnectionState.Idle;
-
+  XmppConnectionState get state => _state;
   ReconnectionManager? reconnectionManager;
 
   Connection(this.account) {
     RosterManager.getInstance(this);
     PresenceManager.getInstance(this);
     MessageHandler.getInstance(this);
-    PingManager.getInstance(this);
+    PingManager.getInstance(this, enablePing: false);
     connectionNegotatiorManager = ConnectionNegotiatorManager(this, account);
     reconnectionManager = ReconnectionManager(this);
   }
@@ -223,7 +229,8 @@ xml:lang='zh'
     connectionNegotatiorManager.init();
     setState(XmppConnectionState.SocketOpening);
     try {
-      return await Socket.connect(account.host ?? account.domain, account.port)
+      return await Socket.connect(account.host ?? account.domain, account.port,
+              timeout: Duration(seconds: 10))
           .then((Socket socket) {
         // if not closed in meantime
         if (_state != XmppConnectionState.Closed) {
@@ -349,6 +356,7 @@ xml:lang='zh'
           .forEach((stanza) {
         // check if exist queryid
         //
+        _inStanzaStreamController.add(stanza);
 
         // check type
         if (stanza is MessageStanza) {
@@ -401,7 +409,7 @@ xml:lang='zh'
             return;
           }
         }
-        return _inStanzaStreamController.add(stanza);
+        return _inStanzaWithNoQueryStreamController.add(stanza);
       });
 
       xmlResponse.descendants
@@ -452,7 +460,16 @@ xml:lang='zh'
     _outStanzaStreamController.add(stanza);
   }
 
-  void writeQueryStanza(AbstractStanza stanza, Completer completer) {
+  Future<void> getIq(IqStanza stanza,
+      {Duration? timeout, bool? addToOutStream}) {
+    var completer = Completer<QueryResult>();
+    writeQueryStanza(stanza, completer,
+        timeout: timeout, addToOutStream: addToOutStream);
+    return completer.future;
+  }
+
+  void writeQueryStanza(AbstractStanza stanza, Completer<QueryResult> completer,
+      {Duration? timeout, bool? addToOutStream}) {
     if (stanza is IqStanza) {
       // check id and query id
       if (stanza.id != null) {
@@ -468,10 +485,19 @@ xml:lang='zh'
           _callbacks[iqId] = Callback(queryId: queryId);
         }
 
-        // TODO timeout;
         _callbacks[iqId]!.completers.add(completer);
+        Timer(timeout ?? const Duration(seconds: 10), () {
+          if (_callbacks[iqId] != null) {
+            _callbacks[iqId]!.completers.forEach((completer) {
+              completer.completeError(Exception('request timeout'));
+            });
+            _callbacks.remove(iqId);
+          }
+        });
         write(stanza.buildXmlString());
-        _outStanzaStreamController.add(stanza);
+        if (addToOutStream == null || addToOutStream == true) {
+          _outStanzaStreamController.add(stanza);
+        }
       } else {
         print('error, not found iq id or query id stanza');
         throw Exception('Can not found request id');
@@ -492,10 +518,6 @@ xml:lang='zh'
     _fireConnectionStateChangedEvent(state);
     _processState(state);
     Log.d(TAG, 'State: $_state');
-  }
-
-  XmppConnectionState get state {
-    return _state;
   }
 
   void _processState(XmppConnectionState state) {

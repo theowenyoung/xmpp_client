@@ -5,7 +5,11 @@ import 'package:xml/xml.dart' as xml;
 class XmppElement {
   String? name;
   String? textValue;
-  XmppElement([this.name, this.textValue]);
+  XmppElement([this.name, this.textValue, String? namespace]) {
+    if (namespace != null) {
+      addAttribute(XmppAttribute('xmlns', namespace));
+    }
+  }
   final List<XmppElement> _children = <XmppElement>[];
   List<XmppElement> get children => _children;
 

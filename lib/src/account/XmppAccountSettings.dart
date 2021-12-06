@@ -13,7 +13,7 @@ class XmppAccountSettings {
   int reconnectionTimeout = 1000;
   bool ackEnabled = true;
   bool smResumable = true;
-
+  bool pingEnabled = true;
   XmppAccountSettings(
       this.name, this.username, this.domain, this.password, this.port,
       {this.host, this.resource});
