@@ -69,8 +69,7 @@ class StreamManagementModule extends Negotiator {
 
   void parseAckResponse(String rawValue) {
     var lastDeliveredStanza = int.parse(rawValue);
-    print(
-        'lastSentStanza: ${streamState.lastSentStanza}, lastDeliveredStanza: $lastDeliveredStanza');
+
     var shouldStay = streamState.lastSentStanza - lastDeliveredStanza;
     if (shouldStay < 0) shouldStay = 0;
     while (streamState.nonConfirmedSentStanzas.length > shouldStay) {

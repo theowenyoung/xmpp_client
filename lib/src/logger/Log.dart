@@ -1,7 +1,7 @@
 import 'dart:developer';
 
 class Log {
-  static LogLevel logLevel = LogLevel.VERBOSE;
+  static LogLevel logLevel = LogLevel.INFO;
 
   static bool logXmpp = true;
 
@@ -48,7 +48,6 @@ class Log {
       log('$message');
     }
   }
-
 }
 
 enum LogLevel { VERBOSE, DEBUG, INFO, WARNING, ERROR, OFF }

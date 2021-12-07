@@ -97,8 +97,6 @@ class RoomManager {
     required int size,
     required String filePath,
   }) {
-    print('path: $filePath');
-
     var stanza =
         MessageStanza(AbstractStanza.getRandomId(), MessageStanzaType.CHAT);
     stanza.toJid = Jid.fromFullJid(roomId);
@@ -124,8 +122,6 @@ class RoomManager {
       required double height,
       required double width}) {
     // get file slot
-    print('path: $filePath');
-
     var stanza =
         MessageStanza(AbstractStanza.getRandomId(), MessageStanzaType.CHAT);
     stanza.toJid = Jid.fromFullJid(roomId);
@@ -162,7 +158,6 @@ class RoomManager {
       final size = file.size;
 
       // get file slot
-      print('path: $filePath');
       final httpUploadModule = _connection.getHttpUploadModule();
       final uploadResult = await httpUploadModule.uploadFile(
           mimeType: mimeType,
@@ -180,7 +175,6 @@ class RoomManager {
       final size = file.size;
 
       // get file slot
-      print('path: $filePath');
       final httpUploadModule = _connection.getHttpUploadModule();
       final uploadResult = await httpUploadModule.uploadFile(
           mimeType: mimeType,

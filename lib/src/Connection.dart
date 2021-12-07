@@ -221,7 +221,9 @@ xml:lang='zh'
       _state = XmppConnectionState.Idle;
     }
     if (_state == XmppConnectionState.Idle) {
-      openSocket();
+      openSocket().catchError((e) {
+        Log.e(TAG, e);
+      });
     }
   }
 
@@ -229,7 +231,7 @@ xml:lang='zh'
     connectionNegotatiorManager.init();
     setState(XmppConnectionState.SocketOpening);
     try {
-      return await Socket.connect(account.host ?? account.domain, account.port,
+      await Socket.connect(account.host ?? account.domain, account.port,
               timeout: Duration(seconds: 10))
           .then((Socket socket) {
         // if not closed in meantime
@@ -241,7 +243,11 @@ xml:lang='zh'
               .transform(utf8.decoder)
               .map(prepareStreamResponse)
               .listen(handleResponse, onDone: handleConnectionDone);
-          _openStream();
+          try {
+            _openStream();
+          } catch (e) {
+            handleConnectionDone();
+          }
         } else {
           Log.d(TAG, 'Closed in meantime');
           socket.close();
@@ -249,6 +255,10 @@ xml:lang='zh'
       });
     } on SocketException catch (error) {
       Log.e(TAG, 'Socket Exception' + error.toString());
+      handleConnectionError(error.toString());
+    } catch (error) {
+      Log.e(TAG, 'Other Socket Exception' + error.toString());
+
       handleConnectionError(error.toString());
     }
   }
@@ -499,11 +509,9 @@ xml:lang='zh'
           _outStanzaStreamController.add(stanza);
         }
       } else {
-        print('error, not found iq id or query id stanza');
         throw Exception('Can not found request id');
       }
     } else {
-      print('error, not found iq stanza');
       throw Exception('Can not found request content');
     }
   }

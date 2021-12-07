@@ -96,7 +96,7 @@ class ConnectionNegotiatorManager {
         activeSubscription =
             activeNegotiator!.featureStateStream.listen(stateListener);
       } catch (e) {
-        print('e: listen active negotiator  subscription failed, $e');
+        Log.e(TAG, 'e: listen active negotiator  subscription failed, $e');
         // Stream has already been listened to this listener
       }
     } else {
@@ -144,12 +144,8 @@ class ConnectionNegotiatorManager {
     if (waitingNegotiators.isEmpty) return null;
     var negotiatorWithData = waitingNegotiators.firstWhere((element) {
       final negotiatorName = element!.negotiator.expectedName;
-      if (negotiatorName != null &&
-          negotiatorName == 'StreamManagementModule') {
-        print('StreamManagementModule again');
-      }
       Log.d(TAG,
-          'Found matching negotiator ${element.negotiator.expectedName ?? ''} ${element.negotiator.isReady().toString()}');
+          'Found matching negotiator ${negotiatorName ?? ''} ${element.negotiator.isReady().toString()}');
       return element.negotiator.isReady();
     }, orElse: () {
       Log.d(TAG, 'No matching negotiator');
@@ -157,13 +153,12 @@ class ConnectionNegotiatorManager {
     });
 
     waitingNegotiators.remove(negotiatorWithData);
-    print('waitingNegotiators length: ${waitingNegotiators.length}');
     return negotiatorWithData;
   }
 
   void addFeatures(List<Feature> supportedFeatures) {
     Log.e(TAG,
-        'ADDING FEATURES count: ${supportedFeatures.length} $supportedFeatures');
+        'ADDING FEATURES count: ${supportedFeatures.length} ${supportedFeatures.map((v) => v.xmppVar).toList()}');
     supportedNegotiatorList.forEach((negotiator) {
       var matchingNonzas = negotiator.match(supportedFeatures);
       if (matchingNonzas != null && matchingNonzas.isNotEmpty) {
