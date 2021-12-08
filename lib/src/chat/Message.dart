@@ -99,13 +99,39 @@ class Message {
           final sizeString = fileElement.getChild('size')?.textValue;
           final dimensions = fileElement.getChild('dimensions')?.textValue;
 
-          final url = fileSharingElement
+          final uri = fileSharingElement
               .getChild("sources")
               ?.getChild("url-data")
               ?.textValue;
+          MessageThumbnail? thumbnail;
           if (sizeString != null) {
             final size = int.tryParse(sizeString);
-
+            final thumbnailUri =
+                fileElement.getChild("thumbnail")?.getAttribute('uri')?.value;
+            final thumbnailMimeType = fileElement
+                .getChild("thumbnail")
+                ?.getAttribute('media-type')
+                ?.value;
+            final thumbnailHeightValue = fileElement
+                .getChild("thumbnail")
+                ?.getAttribute('height')
+                ?.value;
+            final thumbnailWidthValue =
+                fileElement.getChild("thumbnail")?.getAttribute('width')?.value;
+            if (thumbnailHeightValue != null && thumbnailWidthValue != null) {
+              final thumbnaiWidth = double.tryParse(thumbnailWidthValue);
+              final thumbnailHeight = double.tryParse(thumbnailHeightValue);
+              if (thumbnaiWidth != null &&
+                  thumbnailHeight != null &&
+                  thumbnailUri != null &&
+                  thumbnailMimeType != null) {
+                thumbnail = MessageThumbnail(
+                    uri: thumbnailUri,
+                    mimeType: thumbnailMimeType,
+                    width: thumbnaiWidth,
+                    height: thumbnailHeight);
+              }
+            }
             if (mimeType != null &&
                 mimeType.startsWith('image/') &&
                 dimensions != null) {
@@ -114,42 +140,43 @@ class Message {
                 final width = double.tryParse(dimensionsSplit[0]);
                 final height = double.tryParse(dimensionsSplit[1]);
 
-                if (name != null && url != null && size != null) {
+                if (name != null && uri != null && size != null) {
                   // image
                   if (mimeType.startsWith('image/') &&
                       width != null &&
                       height != null) {
                     // image
+                    // thumbnail
 
                     message.images = [
                       MessageImage(
-                        mimeType: mimeType,
-                        name: name,
-                        size: size,
-                        width: width,
-                        height: height,
-                        url: url,
-                      )
+                          mimeType: mimeType,
+                          name: name,
+                          size: size,
+                          width: width,
+                          height: height,
+                          uri: uri,
+                          thumbnail: thumbnail)
                     ];
                   }
                 }
               }
             } else if (mimeType != null &&
                 name != null &&
-                url != null &&
+                uri != null &&
                 size != null) {
               message.files = [
                 MessageFile(
-                  mimeType: mimeType,
-                  name: name,
-                  size: size,
-                  url: url,
-                )
+                    mimeType: mimeType,
+                    name: name,
+                    size: size,
+                    uri: uri,
+                    thumbnail: thumbnail)
               ];
             }
           }
         }
-        // message.images = [MessageImage(url: urlElement.textValue!)];
+        // message.images = [MessageImage(uri: uriElement.textValue!)];
       }
     }
 

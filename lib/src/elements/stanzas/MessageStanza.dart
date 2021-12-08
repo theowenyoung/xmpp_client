@@ -3,18 +3,19 @@ import 'package:xmpp_stone/src/elements/XmppAttribute.dart';
 import 'package:xmpp_stone/src/elements/XmppElement.dart';
 import 'package:xmpp_stone/src/elements/stanzas/AbstractStanza.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
-import '../forms/XElement.dart';
 
 class MessageFile {
-  String url;
+  String uri;
   int size;
   String mimeType;
   String name;
+  MessageThumbnail? thumbnail;
   MessageFile(
-      {required this.url,
+      {required this.uri,
       required this.size,
       required this.name,
-      required this.mimeType});
+      required this.mimeType,
+      this.thumbnail});
 }
 
 class MessageImage extends MessageFile {
@@ -25,9 +26,27 @@ class MessageImage extends MessageFile {
       required this.width,
       required String mimeType,
       required int size,
-      required String url,
-      required String name})
-      : super(mimeType: mimeType, size: size, name: name, url: url);
+      required String uri,
+      required String name,
+      MessageThumbnail? thumbnail})
+      : super(
+            mimeType: mimeType,
+            size: size,
+            name: name,
+            uri: uri,
+            thumbnail: thumbnail);
+}
+
+class MessageThumbnail {
+  String uri;
+  String mimeType;
+  double height;
+  double width;
+  MessageThumbnail(
+      {required this.uri,
+      required this.height,
+      required this.width,
+      required this.mimeType});
 }
 
 class MessageStanza extends AbstractStanza {
@@ -45,6 +64,7 @@ class MessageStanza extends AbstractStanza {
 
   void setFiles(List<MessageFile> files, {String? dimensions}) {
     if (files.isNotEmpty) {
+      final file = files[0];
       // jabber:x:oob is the namespace for out of band data
       // for clients do not support stateless https://xmpp.org/extensions/xep-0447.html
       final element = XmppElement();
@@ -52,7 +72,7 @@ class MessageStanza extends AbstractStanza {
       element.addAttribute(XmppAttribute('xmlns', 'jabber:x:oob'));
       final urlElement = XmppElement();
       urlElement.name = 'url';
-      urlElement.textValue = files[0].url;
+      urlElement.textValue = file.uri;
       element.addChild(urlElement);
       addChild(element);
 
@@ -66,19 +86,32 @@ class MessageStanza extends AbstractStanza {
       fileElement.name = 'file';
       fileElement.namespace = 'urn:xmpp:file:metadata:0';
 
-      fileElement.addChild(XmppElement('media-type', files[0].mimeType));
-      fileElement.addChild(XmppElement('name', files[0].name));
-      fileElement.addChild(XmppElement('size', files[0].size.toString()));
+      fileElement.addChild(XmppElement('media-type', file.mimeType));
+      fileElement.addChild(XmppElement('name', file.name));
+      fileElement.addChild(XmppElement('size', file.size.toString()));
       if (dimensions != null) {
         fileElement.addChild(XmppElement('dimensions', dimensions));
+      }
+      // thumbnail
+      if (file.thumbnail != null) {
+        final thumbnail = file.thumbnail!;
+        final thumbnailElement =
+            XmppElement('thumbnail', null, 'urn:xmpp:thumbs:1');
+        thumbnailElement.addAttribute(XmppAttribute('uri', thumbnail.uri));
+        thumbnailElement
+            .addAttribute(XmppAttribute('media-type', thumbnail.mimeType));
+        thumbnailElement
+            .addAttribute(XmppAttribute('width', thumbnail.width.toString()));
+        thumbnailElement
+            .addAttribute(XmppAttribute('height', thumbnail.height.toString()));
       }
 
       fileSharingElement.addChild(fileElement);
       // add sources
       final sourcesElement = XmppElement('sources');
-      final urlDataElement = XmppElement('url-data', files[0].url);
+      final urlDataElement = XmppElement('url-data', file.uri);
       urlDataElement.namespace = 'http://jabber.org/protocol/url-data';
-      urlDataElement.addAttribute(XmppAttribute('target', files[0].url));
+      urlDataElement.addAttribute(XmppAttribute('target', file.uri));
       sourcesElement.addChild(urlDataElement);
       fileSharingElement.addChild(sourcesElement);
       addChild(fileSharingElement);
@@ -87,7 +120,8 @@ class MessageStanza extends AbstractStanza {
 
   void setImages(List<MessageImage> files) {
     if (files.isNotEmpty) {
-      final dimensions = '${files[0].width}x${files[0].height}';
+      final file = files[0];
+      final dimensions = '${file.width}x${file.height}';
 
       setFiles(files, dimensions: dimensions);
     }

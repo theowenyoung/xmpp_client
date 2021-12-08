@@ -103,7 +103,7 @@ class RoomManager {
     stanza.fromJid = _connection.fullJid;
     stanza.body = 'file';
     stanza.setFiles([
-      MessageFile(url: filePath, size: size, mimeType: mimeType, name: fileName)
+      MessageFile(uri: filePath, size: size, mimeType: mimeType, name: fileName)
     ]);
     final message =
         Message.fromStanza(stanza, currentAccountJid: _connection.fullJid);
@@ -130,7 +130,7 @@ class RoomManager {
     if (mimeType.startsWith('image/')) {
       stanza.setImages([
         MessageImage(
-            url: filePath,
+            uri: filePath,
             height: height,
             width: width,
             size: size,
@@ -149,10 +149,11 @@ class RoomManager {
     }
   }
 
-  Future<void> sendFileMessage(String roomId, Message message) async {
+  Future<void> sendFileMessage(String roomId, Message message,
+      {MessageThumbnail Function(MessageFile message)? getThumbnail}) async {
     if (message.images != null && message.images!.isNotEmpty) {
       final file = message.images!.first;
-      final filePath = file.url;
+      final filePath = file.uri;
       final mimeType = file.mimeType;
       final fileName = file.name;
       final size = file.size;
@@ -164,12 +165,18 @@ class RoomManager {
           fileName: fileName,
           size: size,
           filePath: filePath);
-      // change url
-      message.images!.first.url = uploadResult.url;
+      // change uri
+      message.images!.first.uri = uploadResult.url;
+      // thumbnail
+      // chat thumbnail
+      if (getThumbnail != null) {
+        final thumbnail = getThumbnail(message.images!.first);
+        message.images!.first.thumbnail = thumbnail;
+      }
       _connection.writeStanza(message.toStanza());
     } else if (message.files != null && message.files!.isNotEmpty) {
       final file = message.files!.first;
-      final filePath = file.url;
+      final filePath = file.uri;
       final mimeType = file.mimeType;
       final fileName = file.name;
       final size = file.size;
@@ -181,8 +188,13 @@ class RoomManager {
           fileName: fileName,
           size: size,
           filePath: filePath);
-      // change url
-      message.files!.first.url = uploadResult.url;
+      // change uri
+      message.files!.first.uri = uploadResult.url;
+      // chat thumbnail
+      if (getThumbnail != null) {
+        final thumbnail = getThumbnail(message.files!.first);
+        message.files!.first.thumbnail = thumbnail;
+      }
       _connection.writeStanza(message.toStanza());
     } else {
       throw Exception('invalid file');
