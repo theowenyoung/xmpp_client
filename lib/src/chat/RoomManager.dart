@@ -61,7 +61,6 @@ class RoomManager {
         final room = Room(
           messageRoom.id,
           updatedAt: message.createdAt,
-          name: messageRoom.id,
           unreadCount: message.room.unreadCount ?? 0,
           preview: message.text,
         );

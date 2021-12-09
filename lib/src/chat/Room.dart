@@ -13,7 +13,6 @@ import 'package:xmpp_stone/src/features/message_archive/MessageArchiveManager.da
 class Room {
   static String TAG = 'Room';
   String id;
-  String name = '';
   String preview = '';
   DateTime updatedAt;
   int unreadCount = 0;
@@ -21,7 +20,6 @@ class Room {
   Room(
     this.id, {
     required this.updatedAt,
-    required this.name,
     required this.preview,
     required this.unreadCount,
   });
