@@ -35,7 +35,9 @@ class XmppElement {
   }
 
   String buildXmlString() {
-    return buildXml().toXmlString(pretty: true);
+    final xml = buildXml();
+    final xmlString = xml.toXmlString(pretty: false);
+    return xmlString;
   }
 
   xml.XmlElement buildXml() {
