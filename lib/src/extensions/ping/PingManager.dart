@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:xmpp_stone/src/elements/stanzas/AbstractStanza.dart';
 import 'package:xmpp_stone/src/elements/stanzas/IqStanza.dart';
-import 'package:xmpp_stone/src/Connection.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
 
 class PingManager {
@@ -66,7 +64,8 @@ class PingManager {
 
   void ping() {
     // <ping xmlns="urn:xmpp:ping"/>
-    final iqElement = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.GET,
+    final iqElement = IqStanza(
+        'ping_' + AbstractStanza.getRandomId(), IqStanzaType.GET,
         to: _connection.account.domain);
     final pingElement = XmppElement('ping', null, 'urn:xmpp:ping');
     iqElement.addChild(pingElement);

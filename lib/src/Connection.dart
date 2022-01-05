@@ -17,6 +17,7 @@ import 'package:xmpp_stone/src/features/servicediscovery/CarbonsNegotiator.dart'
 import 'package:xmpp_stone/src/features/servicediscovery/MAMNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/ServiceDiscoveryNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/InboxNegotiator.dart';
+import 'package:sqflite/sqflite.dart';
 
 import 'package:xmpp_stone/src/features/streammanagement/StreamManagmentModule.dart';
 import 'package:xmpp_stone/src/parser/StanzaParser.dart';
@@ -25,6 +26,7 @@ import 'package:xmpp_stone/src/roster/RosterManager.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
 
 import 'logger/Log.dart';
+import './DbProvider.dart';
 
 enum XmppConnectionState {
   Idle,
@@ -145,7 +147,7 @@ class Connection {
   Jid get fullJid => account.fullJid;
 
   late ConnectionNegotiatorManager connectionNegotatiorManager;
-
+  late DbProvider db;
   void fullJidRetrieved(Jid jid) {
     account.resource = jid.resource;
     account.resourceBinded = true;
@@ -169,6 +171,11 @@ class Connection {
     PingManager.getInstance(this, enablePing: false);
     connectionNegotatiorManager = ConnectionNegotiatorManager(this, account);
     reconnectionManager = ReconnectionManager(this);
+  }
+  Future<void> init() async {
+    // init sqlite
+    db = DbProvider();
+    await db.init(account.dbPath);
   }
 
   void _openStream() {

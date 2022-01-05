@@ -4,6 +4,7 @@ class Log {
   static LogLevel logLevel = LogLevel.INFO;
 
   static bool logXmpp = true;
+  static bool logPing = false;
 
   static void v(String tag, String message) {
     if (logLevel.index <= LogLevel.VERBOSE.index) {
@@ -37,6 +38,13 @@ class Log {
 
   static void xmppp_receiving(String message) {
     if (logXmpp) {
+      if (!logPing) {
+        if (message.contains('urn:xmpp:sm') ||
+            message.contains('urn:xmpp:ping') ||
+            message.contains("id='ping_")) {
+          return;
+        }
+      }
       log('---Xmpp Receiving:---');
       log('$message');
     }
@@ -44,6 +52,12 @@ class Log {
 
   static void xmppp_sending(String message) {
     if (logXmpp) {
+      if (!logPing) {
+        if (message.contains('urn:xmpp:sm') ||
+            message.contains('urn:xmpp:ping')) {
+          return;
+        }
+      }
       log('---Xmpp Sending:---');
       log('$message');
     }
