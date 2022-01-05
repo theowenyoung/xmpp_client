@@ -12,13 +12,15 @@ import 'package:xmpp_stone/src/features/message_archive/MessageArchiveManager.da
 
 class Room {
   static String TAG = 'Room';
-  String id;
+  late String id;
+  String? resource;
   String preview = '';
   DateTime updatedAt;
   int unreadCount = 0;
   String get updatedAtStr => updatedAt.toString();
   Room(
     this.id, {
+    this.resource,
     required this.updatedAt,
     required this.preview,
     required this.unreadCount,

@@ -6,9 +6,10 @@ import '../elements/stanzas/MessageStanza.dart';
 import '../logger/Log.dart';
 
 class MessageRoom {
-  String id;
+  late String id;
+  String? resource;
   int? unreadCount = 0;
-  MessageRoom(this.id, {this.unreadCount});
+  MessageRoom(this.id, {this.unreadCount, this.resource});
 }
 
 enum MessageStatus { delivered, error, seen, sending, sent, init }
@@ -20,6 +21,8 @@ class Message {
   XmppElement? bareMessageStanza;
   late Jid from;
   late String fromId;
+  late Jid to;
+  late String toId;
   String text;
   DateTime createdAt;
   String id;
@@ -48,6 +51,7 @@ class Message {
     } else {
       throw Exception('fromId or from must be provided');
     }
+
     if (messageStanza != null) {
       this.messageStanza = messageStanza;
     } else {
@@ -214,7 +218,7 @@ class Message {
                 text: body,
                 from: from,
                 createdAt: dateTime,
-                room: MessageRoom(roomId),
+                room: MessageRoom(roomId, resource: roomJid.resource),
                 status: MessageStatus.delivered);
           }
         }
@@ -256,7 +260,6 @@ class Message {
             dateTime ??= DateTime.now();
             final roomJid =
                 currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
-            final roomId = roomJid.userAtDomain;
             return Message(id,
                 bareMessageStanza: message,
                 messageStanza: stanza,
@@ -265,7 +268,8 @@ class Message {
                 createdAt: dateTime,
                 serverId: serverId,
                 status: MessageStatus.delivered,
-                room: MessageRoom(roomId, unreadCount: roomUnreadCount));
+                room: MessageRoom(roomJid.userAtDomain,
+                    resource: roomJid.resource, unreadCount: roomUnreadCount));
           }
         }
       }
@@ -290,7 +294,6 @@ class Message {
       final dateTime = DateTime.now();
       final roomJid =
           currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
-      final roomId = roomJid.userAtDomain;
       return Message(id,
           bareMessageStanza: message,
           messageStanza: message,
@@ -298,7 +301,7 @@ class Message {
           from: from,
           createdAt: dateTime,
           status: MessageStatus.delivered,
-          room: MessageRoom(roomId));
+          room: MessageRoom(roomJid.userAtDomain, resource: roomJid.resource));
     }
     return null;
   }

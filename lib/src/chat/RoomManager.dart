@@ -39,7 +39,7 @@ class RoomManager {
           Message.fromStanza(stanza!, currentAccountJid: _connection.fullJid);
       if (message != null) {
         // check if room exists
-        final roomId = message.room.id;
+        final roomId = message.room.id!;
         _roomMessageUpdatedStreamController.add(Event(roomId, message));
       }
 
@@ -60,6 +60,7 @@ class RoomManager {
         final messageRoom = message.room;
         final room = Room(
           messageRoom.id,
+          resource: messageRoom.resource,
           updatedAt: message.createdAt,
           unreadCount: message.room.unreadCount ?? 0,
           preview: message.text,
@@ -72,13 +73,13 @@ class RoomManager {
     }
   }
 
-  Message createTextMessage(String roomId, String text) {
+  Message createTextMessage(String roomId, String text, {String? resource}) {
     // if login
     final id = AbstractStanza.getRandomId();
     return Message(id,
         status: MessageStatus.init,
         text: text,
-        room: MessageRoom(roomId),
+        room: MessageRoom(roomId, resource: resource),
         from: _connection.fullJid,
         createdAt: DateTime.now());
   }
