@@ -252,8 +252,8 @@ class RoomManager {
     String? roomId,
     String? beforeId,
     String? afterId,
-    int limit = 5,
-    String sort = 'desc',
+    int limit = 20,
+    String sort = 'asc',
   }) async {
     final mamManager = _connection.getMamModule();
     final queryResult = await mamManager.queryById(
@@ -263,14 +263,15 @@ class RoomManager {
         limit: limit,
         sort: sort);
     if (queryResult.messages.isNotEmpty) {
-      return queryResult.messages.where((stanza) {
-        return Message.fromStanza(stanza as MessageStanza,
-                currentAccountJid: _connection.fullJid) !=
-            null;
-      }).map((stanza) {
-        return Message.fromStanza(stanza as MessageStanza,
-            currentAccountJid: _connection.fullJid)!;
-      }).toList();
+      var messages = <Message>[];
+      for (var stanza in queryResult.messages) {
+        final message = Message.fromStanza(stanza as MessageStanza,
+            currentAccountJid: _connection.fullJid);
+        if (message != null) {
+          messages.add(message);
+        }
+      }
+      return messages;
     } else {
       return [];
     }

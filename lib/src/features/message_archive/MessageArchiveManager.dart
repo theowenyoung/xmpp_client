@@ -40,13 +40,19 @@ class MessageArchiveManager {
 
   MessageArchiveManager(this._connection);
 
-  Future<QueryResult> queryAll() async {
+  Future<QueryResult> queryAll({int limit = 50, String sort = 'asc'}) async {
     var queryId = AbstractStanza.getRandomId();
     var iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET,
         queryId: queryId);
     var query = QueryElement();
     query.setXmlns('urn:xmpp:mam:2');
     query.setQueryId(queryId);
+    var set = SetElement.build();
+    set.addMax(limit);
+    if (sort == 'desc') {
+      set.addBefore();
+    }
+    query.addChild(set);
     iqStanza.addChild(query);
     var completer = Completer<QueryResult>();
     _connection.writeQueryStanza(iqStanza, completer);
@@ -54,9 +60,13 @@ class MessageArchiveManager {
   }
 
   Future<QueryResult> queryByTime(
-      {DateTime? start, DateTime? end, Jid? jid}) async {
+      {DateTime? start,
+      DateTime? end,
+      Jid? jid,
+      int limit = 50,
+      String sort = 'asc'}) async {
     if (start == null && end == null && jid == null) {
-      return queryAll();
+      return queryAll(limit: limit, sort: sort);
     } else {
       final queryId = AbstractStanza.getRandomId();
       final iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET,
@@ -69,6 +79,10 @@ class MessageArchiveManager {
       x.setNs('jabber:x:data');
       x.setType(FormType.SUBMIT);
       query.addChild(x);
+      var set = SetElement.build();
+      set.addMax(limit);
+      query.addChild(set);
+
       x.addField(FieldElement.build(
           varAttr: 'FORM_TYPE', typeAttr: 'hidden', value: 'urn:xmpp:mam:2'));
       if (start != null) {
@@ -96,7 +110,7 @@ class MessageArchiveManager {
       int limit = 50,
       String sort = 'asc'}) async {
     if (beforeId == null && afterId == null && jid == null) {
-      return queryAll();
+      return queryAll(limit: limit, sort: sort);
     } else {
       final queryId = AbstractStanza.getRandomId();
       final iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET,
