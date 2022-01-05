@@ -174,7 +174,7 @@ class Connection {
   }
   Future<void> init() async {
     // init sqlite
-    db = DbProvider();
+    db = DbProvider(account.fullJid);
     await db.init(account.dbPath);
   }
 

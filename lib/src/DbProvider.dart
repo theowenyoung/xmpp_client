@@ -1,5 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
+import 'package:xml/xml.dart' as xml;
+import 'package:xmpp_stone/src/parser/StanzaParser.dart';
 
 final String tableMessages = 'messages';
 final String columnId = '_id';
@@ -16,10 +18,13 @@ final String columnUpdatedAt = 'updated_at';
 
 class DbProvider {
   late Database db;
-
+  Jid currentFullJid;
+  DbProvider(this.currentFullJid);
   Future init(String path) async {
+    print('DbProvider init $path');
     db = await openDatabase(path, version: 1,
         onCreate: (Database db, int version) async {
+      print('DbProvider onCreate $path $version');
       await db.execute('''
 create table $tableMessages ( 
   $columnId integer primary key autoincrement, 
@@ -39,15 +44,51 @@ create table $tableMessages (
     return db;
   }
 
-  Future<void> insert_message(Message message) async {
+  Future<List<Message>> getMessages({
+    String? roomId,
+    String? beforeId,
+    String? afterId,
+    int limit = 5,
+    String sort = 'desc',
+  }) async {
+    final messages = await db.rawQuery(
+        'SELECT $columnId,$columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessage,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt FROM $tableMessages limit $limit');
+    print('messages, $messages');
+    var messageList = <Message>[];
+    for (var rawMessage in messages) {
+      print('raw message, $rawMessage');
+      final messageXmlString = rawMessage[columnMessage] as String;
+      xml.XmlElement? xmlResponse;
+      try {
+        xmlResponse = xml.XmlDocument.parse(messageXmlString).firstChild
+            as xml.XmlElement;
+        // xmlResponse?.children.whereType<xml.XmlElement>();
+        final stanza = StanzaParser.parseStanza(xmlResponse)! as MessageStanza;
+        messageList.add(
+            Message.fromStanza(stanza, currentAccountJid: currentFullJid)!);
+      } catch (e) {
+        print('e $e');
+      }
+    }
+    print('messageList $messageList');
+    return messageList;
+  }
+
+  Future<void> insertMessage(Message message) async {
+    final messageStanza = message.toStanza();
     await db.rawInsert(
-        'INSERT INTO $tableMessages($columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessage,$columnSearchBody,$columnClientId,$columnCreatedAt,$columnUpdatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)',
+        'INSERT INTO $tableMessages($columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessage,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           message.serverId,
           message.id,
           message.from.resource,
           message.fromId,
-          message.room.id
+          message.room.resource,
+          message.room.id,
+          messageStanza.buildXmlString(),
+          messageStanza.body,
+          message.createdAt.millisecondsSinceEpoch,
+          message.createdAt.millisecondsSinceEpoch
         ]);
   }
 

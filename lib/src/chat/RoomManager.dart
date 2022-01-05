@@ -39,8 +39,13 @@ class RoomManager {
           Message.fromStanza(stanza!, currentAccountJid: _connection.fullJid);
       if (message != null) {
         // check if room exists
-        final roomId = message.room.id!;
+        final roomId = message.room.id;
+        // write to db
+
         _roomMessageUpdatedStreamController.add(Event(roomId, message));
+        _connection.db.insertMessage(message).catchError((e) {
+          Log.e('message', e.toString());
+        });
       }
 
       // sort
@@ -88,6 +93,9 @@ class RoomManager {
     final messageStanza = message.toStanza();
 
     _connection.writeStanza(messageStanza);
+    _connection.db.insertMessage(message).catchError((e) {
+      Log.e('save send message failed', e.toString());
+    });
   }
 
   Message createFileMessage(
@@ -219,8 +227,29 @@ class RoomManager {
     return inboxManager.markAsRead(roomId);
   }
 
-  Future<List<Message>> getMessages(
-    String roomId, {
+  Future<List<Message>> getMessages({
+    String? roomId,
+    String? beforeId,
+    String? afterId,
+    int limit = 5,
+    String sort = 'desc',
+  }) async {
+    // get client db
+    final localMessages = await _connection.db.getMessages(
+        roomId: roomId,
+        beforeId: beforeId,
+        afterId: afterId,
+        limit: limit,
+        sort: sort);
+    if (localMessages.isNotEmpty) {
+      return localMessages;
+    } else {
+      return [];
+    }
+  }
+
+  Future<List<Message>> getServerMessages({
+    String? roomId,
     String? beforeId,
     String? afterId,
     int limit = 5,
@@ -228,7 +257,7 @@ class RoomManager {
   }) async {
     final mamManager = _connection.getMamModule();
     final queryResult = await mamManager.queryById(
-        jid: Jid.fromFullJid(roomId),
+        jid: roomId != null ? Jid.fromFullJid(roomId) : null,
         beforeId: beforeId,
         afterId: afterId,
         limit: limit,
