@@ -35,8 +35,7 @@ class VCardManager {
 
   Future<VCard> getSelfVCard() {
     var completer = Completer<VCard>();
-    var iqStanza =
-        IqStanza(AbstractStanza.getRandomId(), IqStanzaType.GET);
+    var iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.GET);
     iqStanza.fromJid = _connection.fullJid;
     var vCardElement = XmppElement();
     vCardElement.name = 'vCard';
@@ -49,8 +48,7 @@ class VCardManager {
 
   Future<VCard> getVCardFor(Jid jid) {
     var completer = Completer<VCard>();
-    var iqStanza =
-        IqStanza(AbstractStanza.getRandomId(), IqStanzaType.GET);
+    var iqStanza = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.GET);
     iqStanza.fromJid = _connection.fullJid;
     iqStanza.toJid = jid;
     var vCardElement = XmppElement();

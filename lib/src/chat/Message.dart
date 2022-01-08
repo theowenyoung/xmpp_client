@@ -16,7 +16,7 @@ enum MessageStatus { delivered, error, seen, sending, sent, init }
 
 class Message {
   static String TAG = 'Message';
-  late MessageStanza messageStanza;
+  // late MessageStanza messageStanza;
   MessageStatus status;
   XmppElement? bareMessageStanza;
   late Jid from;
@@ -26,6 +26,7 @@ class Message {
   String text;
   DateTime createdAt;
   String id;
+  int? dbId;
   String? serverId;
   MessageRoom room;
   List<MessageImage>? images;
@@ -39,7 +40,8 @@ class Message {
       required this.room,
       this.status = MessageStatus.init,
       this.bareMessageStanza,
-      MessageStanza? messageStanza,
+      this.dbId,
+      // MessageStanza? messageStanza,
       this.images,
       this.serverId}) {
     if (from != null) {
@@ -52,11 +54,11 @@ class Message {
       throw Exception('fromId or from must be provided');
     }
 
-    if (messageStanza != null) {
-      this.messageStanza = messageStanza;
-    } else {
-      this.messageStanza = toStanza();
-    }
+    // if (messageStanza != null) {
+    //   this.messageStanza = messageStanza;
+    // } else {
+    //   this.messageStanza = toStanza();
+    // }
   }
   MessageStanza toStanza() {
     final stanza = MessageStanza(id, MessageStanzaType.CHAT);
@@ -73,7 +75,7 @@ class Message {
   }
 
   static Message? fromStanza(MessageStanza stanza,
-      {required Jid currentAccountJid}) {
+      {required Jid currentAccountJid, DateTime? createdAt, int? dbId}) {
     Message? message;
     final isCarbon = stanza.children.any(
         (element) => (element.name == 'sent' || element.name == 'received'));
@@ -84,8 +86,8 @@ class Message {
     } else if (isArchivedMessage) {
       message = _parseArchived(stanza, currentAccountJid: currentAccountJid);
     }
-    message ??=
-        _parseRegularMessage(stanza, currentAccountJid: currentAccountJid);
+    message ??= _parseRegularMessage(stanza,
+        currentAccountJid: currentAccountJid, createdAt: createdAt, dbId: dbId);
     // common atrributes
     if (message?.bareMessageStanza != null) {
       final bareMessageStanza = message!.bareMessageStanza!;
@@ -214,7 +216,7 @@ class Message {
             final bareMessageStanza = message;
             return Message(id,
                 bareMessageStanza: bareMessageStanza,
-                messageStanza: stanza,
+                // messageStanza: stanza,
                 text: body,
                 from: from,
                 createdAt: dateTime,
@@ -262,7 +264,7 @@ class Message {
                 currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
             return Message(id,
                 bareMessageStanza: message,
-                messageStanza: stanza,
+                // messageStanza: stanza,
                 text: body,
                 from: from,
                 createdAt: dateTime,
@@ -280,7 +282,7 @@ class Message {
   }
 
   static Message? _parseRegularMessage(MessageStanza message,
-      {required Jid currentAccountJid}) {
+      {required Jid currentAccountJid, DateTime? createdAt, int? dbId}) {
     if (message.getAttribute('to') != null &&
         message.getAttribute('to')!.value != null &&
         message.getAttribute('from') != null &&
@@ -291,14 +293,15 @@ class Message {
       final to = Jid.fromFullJid(message.getAttribute('to')!.value!);
       final from = Jid.fromFullJid(message.getAttribute('from')!.value!);
       final body = message.getChild('body')?.textValue ?? '';
-      final dateTime = DateTime.now();
+      final dateTime = createdAt ?? DateTime.now();
       final roomJid =
           currentAccountJid.userAtDomain == to.userAtDomain ? from : to;
       return Message(id,
           bareMessageStanza: message,
-          messageStanza: message,
+          // messageStanza: message,
           text: body,
           from: from,
+          dbId: dbId,
           createdAt: dateTime,
           status: MessageStatus.delivered,
           room: MessageRoom(roomJid.userAtDomain, resource: roomJid.resource));

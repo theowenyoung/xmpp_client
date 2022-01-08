@@ -23,6 +23,7 @@ dependencies:
   quiver: ^3.0.1 #hash code generator
   console: ^4.0.0 #for example
   intl: ^0.17.0
+  uuid: ^3.0.5
   collection: ^1.15.0
   pointycastle: ^3.4.0
   sqflite: ^2.0.1

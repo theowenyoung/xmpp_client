@@ -28,3 +28,4 @@ export 'src/features/message_archive/MessageArchiveManager.dart';
 export 'src/types.dart';
 export 'src/features/HttpUpload.dart';
 export 'src/features/streammanagement/StreamManagmentModule.dart';
+export 'src/DbProvider.dart';

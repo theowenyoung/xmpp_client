@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:xmpp_stone/src/data/Jid.dart';
 import 'package:xmpp_stone/src/elements/XmppAttribute.dart';
 import 'package:xmpp_stone/src/elements/XmppElement.dart';
+import 'package:uuid/uuid.dart';
 
 abstract class AbstractStanza extends XmppElement {
   String? _id;
@@ -31,11 +32,7 @@ abstract class AbstractStanza extends XmppElement {
   }
 
   static String getRandomId() {
-    const ASCII_START = 65;
-    const ASCII_END = 90;
-    var codeUnits = List.generate(9, (index) {
-      return Random.secure().nextInt(ASCII_END - ASCII_START) + ASCII_START;
-    });
-    return String.fromCharCodes(codeUnits);
+    var uuid = Uuid();
+    return uuid.v4();
   }
 }

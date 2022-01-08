@@ -14,10 +14,18 @@ class XmppAccountSettings {
   bool ackEnabled = true;
   bool smResumable = true;
   bool pingEnabled = true;
-  String dbPath;
+  late String dbPath;
   XmppAccountSettings(
-      this.name, this.username, this.domain, this.password, this.port,
-      {this.host, this.resource, this.dbPath = 'xmpp_db.db'});
+    this.name,
+    this.username,
+    this.domain,
+    this.password,
+    this.port, {
+    this.host,
+    this.resource,
+  }) {
+    dbPath = 'xmpp_db13_for_$username@$domain.db';
+  }
 
   Jid get fullJid => Jid(username, domain, resource);
 

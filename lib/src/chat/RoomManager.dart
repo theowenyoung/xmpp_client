@@ -41,17 +41,41 @@ class RoomManager {
         // check if room exists
         final roomId = message.room.id;
         // write to db
-
-        _roomMessageUpdatedStreamController.add(Event(roomId, message));
-        _connection.db.insertMessage(message).catchError((e) {
-          Log.e('message', e.toString());
-        });
+        if (_connection.isInitLasteMamMessages) {
+          _connection.db
+              .insertMessage(message, addUnreadCount: 1)
+              .then((newMessage) {
+            if (newMessage != null) {
+              _roomMessageUpdatedStreamController
+                  .add(Event(roomId, newMessage));
+            }
+          }).catchError((e) {
+            Log.e('message', e.toString());
+          });
+        } else {
+          // add to queue
+          _connection.queueMessage.add(message);
+        }
       }
 
       // sort
     });
   }
   Future<List<Room>> getAllRooms() async {
+    // todo get db rooms
+    final db = _connection.db;
+
+    return db.getRooms();
+  }
+
+  Future<void> syncRooms(List<Room> rooms) async {
+    // todo get db rooms
+    final db = _connection.db;
+
+    await db.insertOrUpdateInboxByRooms(rooms);
+  }
+
+  Future<List<Room>> getAllServerRooms() async {
     final inboxManager = _connection.getInboxModule();
     final queryResult = await inboxManager.queryAll();
     if (queryResult.messages.isNotEmpty) {
@@ -63,13 +87,12 @@ class RoomManager {
         final message = Message.fromStanza(stanza as MessageStanza,
             currentAccountJid: _connection.fullJid)!;
         final messageRoom = message.room;
-        final room = Room(
-          messageRoom.id,
-          resource: messageRoom.resource,
-          updatedAt: message.createdAt,
-          unreadCount: message.room.unreadCount ?? 0,
-          preview: message.text,
-        );
+        final room = Room(messageRoom.id,
+            resource: messageRoom.resource,
+            updatedAt: message.createdAt,
+            unreadCount: message.room.unreadCount ?? 0,
+            preview: message.text,
+            lastMessage: message);
 
         return room;
       }).toList();
@@ -91,9 +114,12 @@ class RoomManager {
 
   void sendMessage(String roomId, Message message) {
     final messageStanza = message.toStanza();
-
-    _connection.writeStanza(messageStanza);
-    _connection.db.insertMessage(message).catchError((e) {
+    _connection.db.insertMessage(message).then((newMessage) {
+      if (newMessage != null) {
+        _connection.writeStanza(messageStanza);
+        _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+      }
+    }).catchError((e) {
       Log.e('save send message failed', e.toString());
     });
   }
@@ -134,7 +160,7 @@ class RoomManager {
         MessageStanza(AbstractStanza.getRandomId(), MessageStanzaType.CHAT);
     stanza.toJid = Jid.fromFullJid(roomId);
     stanza.fromJid = _connection.fullJid;
-    stanza.body = 'image';
+    stanza.body = 'Image';
     if (mimeType.startsWith('image/')) {
       stanza.setImages([
         MessageImage(
@@ -175,13 +201,21 @@ class RoomManager {
           filePath: filePath);
       // change uri
       message.images!.first.uri = uploadResult.url;
+      message.text = uploadResult.url;
       // thumbnail
       // chat thumbnail
       if (getThumbnail != null) {
         final thumbnail = getThumbnail(message.images!.first);
         message.images!.first.thumbnail = thumbnail;
       }
-      _connection.writeStanza(message.toStanza());
+      return _connection.db.insertMessage(message).then((newMessage) {
+        if (newMessage != null) {
+          _connection.writeStanza(message.toStanza());
+          _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+        }
+      }).catchError((e) {
+        Log.e('save send message failed', e.toString());
+      });
     } else if (message.files != null && message.files!.isNotEmpty) {
       final file = message.files!.first;
       final filePath = file.uri;
@@ -198,12 +232,21 @@ class RoomManager {
           filePath: filePath);
       // change uri
       message.files!.first.uri = uploadResult.url;
+      message.text = uploadResult.url;
+
       // chat thumbnail
       if (getThumbnail != null) {
         final thumbnail = getThumbnail(message.files!.first);
         message.files!.first.thumbnail = thumbnail;
       }
-      _connection.writeStanza(message.toStanza());
+      return _connection.db.insertMessage(message).then((newMessage) {
+        if (newMessage != null) {
+          _connection.writeStanza(message.toStanza());
+          _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+        }
+      }).catchError((e) {
+        Log.e('save send message failed', e.toString());
+      });
     } else {
       throw Exception('invalid file');
     }
@@ -223,15 +266,16 @@ class RoomManager {
   }
 
   Future<QueryResult> markAsRead(String roomId) async {
+    await _connection.db.updateInboxUnreadCount(roomId);
     final inboxManager = _connection.getInboxModule();
     return inboxManager.markAsRead(roomId);
   }
 
   Future<List<Message>> getMessages({
     String? roomId,
-    String? beforeId,
-    String? afterId,
-    int limit = 5,
+    int? beforeId,
+    int? afterId,
+    int limit = 8,
     String sort = 'desc',
   }) async {
     // get client db

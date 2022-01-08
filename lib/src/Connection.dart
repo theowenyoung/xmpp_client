@@ -18,6 +18,7 @@ import 'package:xmpp_stone/src/features/servicediscovery/MAMNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/ServiceDiscoveryNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/InboxNegotiator.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common/sqflite_dev.dart';
 
 import 'package:xmpp_stone/src/features/streammanagement/StreamManagmentModule.dart';
 import 'package:xmpp_stone/src/parser/StanzaParser.dart';
@@ -74,7 +75,7 @@ class Connection {
   StreamManagementModule? streamManagementModule;
   final Map<String, Callback> _callbacks = {};
   final Map<String, List<AbstractStanza>> _queryResults = {};
-
+  final List<Message> queueMessage = [];
   Jid get serverName {
     if (_serverName != null) {
       return Jid.fromFullJid(_serverName!);
@@ -102,6 +103,7 @@ class Connection {
 
   bool authenticated = false;
   bool firstAuthenticated = false;
+  bool isInitLasteMamMessages = false;
 
   final StreamController<AbstractStanza?> _inStanzaStreamController =
       StreamController.broadcast();
@@ -176,6 +178,9 @@ class Connection {
     // init sqlite
     db = DbProvider(account.fullJid);
     await db.init(account.dbPath);
+    if (Log.logXmpp) {
+      await databaseFactory.setLogLevel(sqfliteLogLevelVerbose);
+    }
   }
 
   void _openStream() {
@@ -588,9 +593,51 @@ xml:lang='zh'
     //now we should send presence
   }
 
+  Future<void> initLastMamMessages() async {
+    final isMamInit = await db.getKv("init_at");
+    if (isMamInit == null) {
+      final roomManager = RoomManager.getInstance(this);
+      var limit = 50;
+      // 获取本地消息最新一条
+      final localMessage =
+          await roomManager.getMessages(limit: limit, sort: 'desc');
+      final serverMessages =
+          await roomManager.getServerMessages(limit: limit, sort: 'desc');
+      var diffList = <Message>[];
+      final localMessageIds = localMessage.map((m) => m.id).toList();
+      for (var serverMessage in serverMessages) {
+        if (localMessageIds.contains(serverMessage.id)) {
+          continue;
+        } else {
+          diffList.add(serverMessage);
+        }
+      }
+      if (diffList.isNotEmpty) {
+        Log.i(TAG, 'insert ${diffList.length} server message to db');
+
+        await db.insertMultipleMessage(diffList);
+      } else {
+        Log.i(TAG, 'no new server message');
+      }
+    }
+    if (queueMessage.isNotEmpty) {
+      Log.i(TAG, 'insert ${queueMessage.length} queue message to db');
+      await db.insertMultipleMessage(queueMessage);
+      // add to stream
+      queueMessage.clear();
+    }
+    await db.initMam();
+    isInitLasteMamMessages = true;
+  }
+
   void doneParsingFeatures() {
     if (state == XmppConnectionState.SessionInitialized) {
-      setState(XmppConnectionState.Ready);
+      // load mam messages
+      initLastMamMessages().then((_) {
+        setState(XmppConnectionState.Ready);
+      }).catchError((e) {
+        setState(XmppConnectionState.Ready);
+      });
     }
   }
 

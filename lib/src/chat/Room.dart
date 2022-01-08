@@ -18,13 +18,13 @@ class Room {
   DateTime updatedAt;
   int unreadCount = 0;
   String get updatedAtStr => updatedAt.toString();
-  Room(
-    this.id, {
-    this.resource,
-    required this.updatedAt,
-    required this.preview,
-    required this.unreadCount,
-  });
+  Message? lastMessage;
+  Room(this.id,
+      {this.resource,
+      required this.updatedAt,
+      required this.preview,
+      required this.unreadCount,
+      this.lastMessage});
   void markAsRead() {
     unreadCount = 0;
   }
