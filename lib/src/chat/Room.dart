@@ -29,6 +29,10 @@ class Room {
     unreadCount = 0;
   }
 
+  String toUniqueId() {
+    return '$id-$resource-$updatedAt-$preview-$unreadCount-${lastMessage?.id}';
+  }
+
   void addUnreadCount() {
     unreadCount++;
   }

@@ -103,7 +103,6 @@ class Connection {
 
   bool authenticated = false;
   bool firstAuthenticated = false;
-  bool isInitLasteMamMessages = false;
 
   final StreamController<AbstractStanza?> _inStanzaStreamController =
       StreamController.broadcast();
@@ -171,6 +170,7 @@ class Connection {
     PresenceManager.getInstance(this);
     MessageHandler.getInstance(this);
     PingManager.getInstance(this, enablePing: false);
+    RoomManager.getInstance(this);
     connectionNegotatiorManager = ConnectionNegotiatorManager(this, account);
     reconnectionManager = ReconnectionManager(this);
   }
@@ -593,49 +593,13 @@ xml:lang='zh'
     //now we should send presence
   }
 
-  Future<void> initLastMamMessages() async {
-    final isMamInit = await db.getKv("init_at");
-    if (isMamInit == null) {
-      final roomManager = RoomManager.getInstance(this);
-      var limit = 50;
-      // 获取本地消息最新一条
-      final localMessage =
-          await roomManager.getMessages(limit: limit, sort: 'desc');
-      final serverMessages =
-          await roomManager.getServerMessages(limit: limit, sort: 'desc');
-      var diffList = <Message>[];
-      final localMessageIds = localMessage.map((m) => m.id).toList();
-      for (var serverMessage in serverMessages) {
-        if (localMessageIds.contains(serverMessage.id)) {
-          continue;
-        } else {
-          diffList.add(serverMessage);
-        }
-      }
-      if (diffList.isNotEmpty) {
-        Log.i(TAG, 'insert ${diffList.length} server message to db');
-
-        await db.insertMultipleMessage(diffList);
-      } else {
-        Log.i(TAG, 'no new server message');
-      }
-    }
-    if (queueMessage.isNotEmpty) {
-      Log.i(TAG, 'insert ${queueMessage.length} queue message to db');
-      await db.insertMultipleMessage(queueMessage);
-      // add to stream
-      queueMessage.clear();
-    }
-    await db.initMam();
-    isInitLasteMamMessages = true;
-  }
-
   void doneParsingFeatures() {
     if (state == XmppConnectionState.SessionInitialized) {
-      // load mam messages
-      initLastMamMessages().then((_) {
+      // load rooms
+      RoomManager.getInstance(this).syncServerRooms().then((_) {
         setState(XmppConnectionState.Ready);
       }).catchError((e) {
+        Log.e(TAG, e.toString());
         setState(XmppConnectionState.Ready);
       });
     }

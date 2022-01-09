@@ -24,7 +24,7 @@ class XmppAccountSettings {
     this.host,
     this.resource,
   }) {
-    dbPath = 'xmpp_db13_for_$username@$domain.db';
+    dbPath = 'xmpp_db16_for_$username@$domain.db';
   }
 
   Jid get fullJid => Jid(username, domain, resource);

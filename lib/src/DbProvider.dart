@@ -80,11 +80,11 @@ ON $tableMessages ($columnRoomBareJid);
   ''');
   batch.execute('''
     CREATE UNIQUE INDEX message_client_unique_id_index
-ON $tableMessages ($columnClientId,$columnDeletedAt);
+ON $tableMessages ($columnClientId,ifnull($columnDeletedAt, 0));
   ''');
   batch.execute('''
     CREATE UNIQUE INDEX room_unique_id_index
-ON $tableInbox ($columnRoomBareJid,$columnDeletedAt);
+ON $tableInbox ($columnRoomBareJid,ifnull($columnDeletedAt, 0));
   ''');
 }
 
@@ -125,11 +125,13 @@ class DbProvider {
 
   Future<List<Room>> getRooms() async {
     final rooms = await db.rawQuery(
-      'SELECT $columnRoomResource,$columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt,$columnDeletedAt,$columnArchived,$columnMutedUntil,$columnUnreadCount FROM $tableInbox where $columnDeletedAt is NULL and (?1 is null or $columnRoomBareJid=?1)',
+      'SELECT $columnRoomResource,$columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt,$columnDeletedAt,$columnArchived,$columnMutedUntil,$columnUnreadCount FROM $tableInbox where $columnDeletedAt is NULL order by $columnUpdatedAt desc',
     );
-    Log.d('rooms', '$rooms');
     var roomList = <Room>[];
+    Log.d('room size', rooms.length.toString());
     for (var rawRoom in rooms) {
+      Log.d('rawRoom', '$rawRoom');
+
       final messageXmlString = rawRoom[columnLastMessageContent] as String;
       xml.XmlElement? xmlResponse;
       try {
@@ -193,9 +195,8 @@ class DbProvider {
     return messageList;
   }
 
-  Future<List<Message?>?> insertMultipleMessage(
-    List<Message> messages,
-  ) async {
+  Future<List<Message?>?> insertMultipleMessage(List<Message> messages,
+      {bool isNeedToChangeInbox = true}) async {
     var batch = db.batch();
 
     for (var message in messages) {
@@ -218,7 +219,7 @@ class DbProvider {
       batch.rawInsert(sql, values);
     }
     // insert last one to inbox
-    if (messages.isNotEmpty) {
+    if (isNeedToChangeInbox && messages.isNotEmpty) {
       final sql =
           'insert into $tableInbox ($columnRoomResource,$columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt,$columnDeletedAt,$columnArchived,$columnMutedUntil,$columnUnreadCount) values(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)';
       final values = [
@@ -252,11 +253,33 @@ class DbProvider {
   }
 
   Future<void> insertOrUpdateInboxByRooms(List<Room> rooms) async {
+    // get all db rooms
+    final dbRooms = await getRooms();
+    final dbRoomUniqueIds = dbRooms.map((item) => item.toUniqueId()).toList();
+    final diffList = <Room>[];
     var batch = db.batch();
     for (var room in rooms) {
-      batch.rawInsert(
-          'INSERT OR IGNORE INTO $tableInbox ($columnRoomBareJid) VALUES(?1);',
-          [room.id]);
+      final serverRoomUnique = room.toUniqueId();
+      if (dbRoomUniqueIds.contains(serverRoomUnique)) {
+        continue;
+      } else {
+        diffList.add(room);
+      }
+    }
+    // todo
+    for (var room in diffList) {
+      final latestMessageContent =
+          room.lastMessage!.toStanza().buildXmlString();
+      batch.rawInsert('''
+          INSERT OR IGNORE INTO $tableInbox 
+          ($columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt) 
+          VALUES (?1,?2,?3,?4);
+          ''', [
+        room.id,
+        latestMessageContent,
+        room.lastMessage!.id,
+        room.updatedAt.millisecondsSinceEpoch
+      ]);
       final sql = '''update $tableInbox 
         set $columnRoomResource = ?1,
         $columnLastMessageContent = ?2,
@@ -270,7 +293,7 @@ class DbProvider {
         ''';
       final values = [
         room.resource,
-        room.lastMessage!.toStanza().buildXmlString(),
+        latestMessageContent,
         room.lastMessage!.id,
         room.updatedAt.millisecondsSinceEpoch,
         null,
@@ -286,9 +309,17 @@ class DbProvider {
 
   void insertOrUpdateInbox(Batch batch, Message message,
       {int addUnreadCount = 0}) {
-    batch.rawInsert(
-        'INSERT OR IGNORE INTO $tableInbox ($columnRoomBareJid) VALUES(?1);',
-        [message.room.id]);
+    final latestMessageContent = message.toStanza().buildXmlString();
+    batch.rawInsert('''
+          INSERT OR IGNORE INTO $tableInbox 
+          ($columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt) 
+          VALUES (?1,?2,?3,?4);
+          ''', [
+      message.room.id,
+      latestMessageContent,
+      message.id,
+      message.createdAt.millisecondsSinceEpoch
+    ]);
     final sql = '''update $tableInbox 
         set $columnRoomResource = ?1,
         $columnLastMessageContent = ?2,
@@ -302,7 +333,7 @@ class DbProvider {
         ''';
     final values = [
       message.room.resource,
-      message.toStanza().buildXmlString(),
+      latestMessageContent,
       message.id,
       message.createdAt.millisecondsSinceEpoch,
       null,
