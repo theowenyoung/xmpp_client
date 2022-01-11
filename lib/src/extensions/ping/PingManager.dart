@@ -69,7 +69,7 @@ class PingManager {
         to: _connection.account.domain);
     final pingElement = XmppElement('ping', null, 'urn:xmpp:ping');
     iqElement.addChild(pingElement);
-    timer = Timer(Duration(seconds: 5), () async {
+    timer = Timer(Duration(seconds: 30), () async {
       // todo
       try {
         await _connection.getIq(iqElement,
