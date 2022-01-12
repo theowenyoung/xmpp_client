@@ -116,13 +116,6 @@ class DbProvider {
     return db;
   }
 
-  Future<void> initMam() async {
-    final now = DateTime.now().millisecondsSinceEpoch.toString();
-    await db.execute('''
-    INSERT into $tableInfo ($columnInfoKey,$columnInfoValue) VALUES ('$rowInitAt',$now);
-  ''', []);
-  }
-
   Future<List<Room>> getRooms() async {
     final rooms = await db.rawQuery(
       'SELECT $columnRoomResource,$columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt,$columnDeletedAt,$columnArchived,$columnMutedUntil,$columnUnreadCount FROM $tableInbox where $columnDeletedAt is NULL order by $columnUpdatedAt desc',
@@ -197,8 +190,6 @@ class DbProvider {
 
   Future<List<Message?>?> insertMultipleMessage(List<Message> messages,
       {bool isNeedToChangeInbox = true}) async {
-    var batch = db.batch();
-
     for (var message in messages) {
       final messageStanza = message.toStanza();
       final sql =
@@ -216,7 +207,11 @@ class DbProvider {
         message.createdAt.millisecondsSinceEpoch
       ];
       Log.d(TAG, 'insert $sql , $values');
-      batch.rawInsert(sql, values);
+      try {
+        await db.rawInsert(sql, values);
+      } catch (e) {
+        Log.w(TAG, 'insert mul message error: $e');
+      }
     }
     // insert last one to inbox
     if (isNeedToChangeInbox && messages.isNotEmpty) {
@@ -233,14 +228,7 @@ class DbProvider {
         null,
         0
       ];
-      batch.rawInsert(sql, values);
-    }
-
-    try {
-      final results = await batch.commit();
-      Log.d(TAG, 'insertMultipleMessage $results');
-    } catch (e) {
-      Log.w('Db', 'insert records error, $e , do nothing');
+      await db.rawInsert(sql, values);
     }
   }
 
