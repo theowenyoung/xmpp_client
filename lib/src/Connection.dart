@@ -166,6 +166,7 @@ class Connection {
   ReconnectionManager? reconnectionManager;
 
   Connection(this.account) {
+    StreamManagementModule.getInstance(this);
     RosterManager.getInstance(this);
     PresenceManager.getInstance(this);
     MessageHandler.getInstance(this);
@@ -218,8 +219,8 @@ xml:lang='zh'
     return response1;
   }
 
-  void reconnect() {
-    if (_state == XmppConnectionState.ForcefullyClosed) {
+  void reconnect({bool force = false}) {
+    if (_state == XmppConnectionState.ForcefullyClosed || force) {
       setState(XmppConnectionState.Reconnecting);
       openSocket();
     }
@@ -290,8 +291,8 @@ xml:lang='zh'
           Log.d(TAG, 'Socket already closed');
         }
       }
-      authenticated = false;
     }
+    authenticated = false;
   }
 
   /// Dispose of the connection so stops all activities and cannot be re-used.
@@ -312,7 +313,7 @@ xml:lang='zh'
     CarbonsNegotiator.removeInstance(this);
     MAMNegotiator.removeInstance(this);
     InboxNegotiator.removeInstance(this);
-
+    RoomManager.removeInstance(this);
     reconnectionManager?.close();
     _socket?.close();
   }
@@ -472,6 +473,10 @@ xml:lang='zh'
       _socket!.write(message);
       Log.xmppp_sending(message);
     } else {
+      // try to reconnect
+      if (_state != XmppConnectionState.Reconnecting) {
+        reconnect(force: true);
+      }
       Log.i('socket', 'Send Message Failed, Socket closed');
       throw Exception('Send Message Failed, Connection losed');
     }
@@ -482,7 +487,7 @@ xml:lang='zh'
     _outStanzaStreamController.add(stanza);
   }
 
-  Future<void> getIq(IqStanza stanza,
+  Future<QueryResult> getIq(IqStanza stanza,
       {Duration? timeout, bool? addToOutStream}) {
     var completer = Completer<QueryResult>();
     writeQueryStanza(stanza, completer,

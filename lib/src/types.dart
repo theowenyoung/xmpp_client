@@ -1,5 +1,5 @@
-class Event<T> {
-  final String id;
-  final T data;
+class Event<T, D> {
+  final T id;
+  final D data;
   Event(this.id, this.data);
 }

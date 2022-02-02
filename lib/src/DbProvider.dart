@@ -17,6 +17,9 @@ final String columnClientId = 'client_id';
 final String columnCreatedAt = 'created_at';
 final String columnUpdatedAt = 'updated_at';
 final String columnDeletedAt = 'deleted_at';
+// {sending,sent,delivered,seen,error }
+// 0,1,2,3,10
+final String columnStatus = 'status';
 
 final String tableInbox = 'inbox';
 final String columnLastMessageId = 'last_message_client_id';
@@ -60,7 +63,9 @@ create table $tableMessages (
   $columnClientId TEXT NOT NULL,
   $columnCreatedAt INTEGER NOT NULL,
   $columnUpdatedAt INTEGER NOT NULL,
-  $columnDeletedAt INTEGER
+  $columnDeletedAt INTEGER,
+  $columnStatus INTEGER NOT NULL DEFAULT 0
+  );
   )
 ''');
   batch.execute('''
@@ -132,8 +137,8 @@ class DbProvider {
             as xml.XmlElement;
         // xmlResponse?.children.whereType<xml.XmlElement>();
         final stanza = StanzaParser.parseStanza(xmlResponse)! as MessageStanza;
-        final message =
-            Message.fromStanza(stanza, currentAccountJid: currentFullJid);
+        final message = Message.fromStanza(stanza,
+            currentAccountJid: currentFullJid, status: 1);
         final roomId = rawRoom[columnRoomBareJid] as String;
         final roomUpdatedAt = rawRoom[columnUpdatedAt] as int;
         final roomPreview = getPreview(message!);
@@ -153,13 +158,17 @@ class DbProvider {
     String? roomId,
     int? beforeId,
     int? afterId,
+    String? clientId,
+    int? endTime,
+    int? endUpdatedTime,
+    int? status,
     int limit = 30,
     String sort = 'desc',
   }) async {
     print("sort: $sort");
     final messages = await db.rawQuery(
-        'SELECT $columnId,$columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt FROM $tableMessages where $columnDeletedAt is NULL and (?1 is null or $columnRoomBareJid=?1) and (?2 is null or $columnId<?2) order by $columnId $sort limit $limit',
-        [roomId, beforeId]);
+        'SELECT $columnId,$columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt,$columnStatus FROM $tableMessages where $columnDeletedAt is NULL and (?3 is null or $columnClientId=?3) and (?4 is null or $columnStatus=?4) and (?5 is null or $columnCreatedAt<?5) and (?6 is null or $columnUpdatedAt<?6) and (?1 is null or $columnRoomBareJid=?1) and (?2 is null or $columnId<?2) order by $columnId $sort limit $limit',
+        [roomId, beforeId, clientId, status, endTime, endUpdatedTime]);
     var messageList = <Message>[];
     for (var rawMessage in messages) {
       final messageXmlString = rawMessage[columnMessageContent] as String;
@@ -167,7 +176,9 @@ class DbProvider {
       final createdAt = DateTime.fromMillisecondsSinceEpoch(
           rawMessage[columnCreatedAt] as int);
       final messageDbId = rawMessage[columnId] as int;
-      Log.d(TAG, '$messageDbId, $createdAt,  $messageXmlString');
+      final messageStatus = rawMessage[columnStatus] as int;
+      Log.d(TAG,
+          '$messageDbId, $createdAt,  $messageXmlString, status: $messageStatus');
 
       xml.XmlElement? xmlResponse;
       try {
@@ -180,7 +191,8 @@ class DbProvider {
             Message.fromStanza(stanza,
                 currentAccountJid: currentFullJid,
                 createdAt: createdAt,
-                dbId: messageDbId)!);
+                dbId: messageDbId,
+                status: messageStatus)!);
       } catch (e) {
         Log.e(TAG, '$e');
       }
@@ -337,7 +349,7 @@ class DbProvider {
     addUnreadCount = 0,
   }) async {
     var batch = db.batch();
-    final messageStanza = message.toStanza();
+    final messageStanza = message.bareMessageStanza ?? message.toStanza();
     final sql =
         'INSERT INTO $tableMessages($columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
     final values = [
@@ -348,7 +360,7 @@ class DbProvider {
       message.room.resource,
       message.room.id,
       messageStanza.buildXmlString(),
-      messageStanza.body,
+      message.text,
       message.createdAt.millisecondsSinceEpoch,
       message.createdAt.millisecondsSinceEpoch
     ];
@@ -363,6 +375,18 @@ class DbProvider {
     } catch (e) {
       Log.w('Db', 'insert records conflict, $sql , $values , $e , do nothing');
     }
+  }
+
+  Future<void> updateMessageStatus(String messageId, int status) async {
+    final sql = '''update $tableMessages 
+        set $columnStatus = ?1,
+        $columnUpdatedAt = ?2
+        where $columnClientId = ?3;
+        ''';
+
+    final result = await db.rawUpdate(
+        sql, [status, DateTime.now().millisecondsSinceEpoch, messageId]);
+    print("result: $result");
   }
 
   Future<String?> getKv(String key) async {
