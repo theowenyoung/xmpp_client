@@ -82,8 +82,13 @@ class RoomManager {
         final roomId = message.room.id;
         // write to db
         if (isSyncedServerMessages) {
+          // is self message, only add unread count ,when not self
+          var addUnreadCount = 0;
+          if (message.from.userAtDomain != _connection.fullJid.userAtDomain) {
+            addUnreadCount = 1;
+          }
           _connection.db
-              .insertMessage(message, addUnreadCount: 1)
+              .insertMessage(message, addUnreadCount: addUnreadCount)
               .then((newMessage) {
             if (newMessage != null) {
               _roomMessageUpdatedStreamController
@@ -171,11 +176,16 @@ class RoomManager {
       }).map((stanza) {
         final message = Message.fromStanza(stanza as MessageStanza,
             currentAccountJid: _connection.fullJid, status: 2)!;
+        // fix server unread count for self room
+        var unreadCount = message.room.unreadCount ?? 0;
+        if (message.room.id == _connection.fullJid.userAtDomain) {
+          unreadCount = 0;
+        }
         final messageRoom = message.room;
         final room = Room(messageRoom.id,
             resource: messageRoom.resource,
             updatedAt: message.createdAt,
-            unreadCount: message.room.unreadCount ?? 0,
+            unreadCount: unreadCount,
             preview: message.text,
             lastMessage: message);
 
