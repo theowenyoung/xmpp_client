@@ -165,7 +165,6 @@ class DbProvider {
     int limit = 30,
     String sort = 'desc',
   }) async {
-    print("sort: $sort");
     final messages = await db.rawQuery(
         'SELECT $columnId,$columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt,$columnStatus FROM $tableMessages where $columnDeletedAt is NULL and (?3 is null or $columnClientId=?3) and (?4 is null or $columnStatus=?4) and (?5 is null or $columnCreatedAt<?5) and (?6 is null or $columnUpdatedAt<?6) and (?1 is null or $columnRoomBareJid=?1) and (?2 is null or $columnId<?2) order by $columnId $sort limit $limit',
         [roomId, beforeId, clientId, status, endTime, endUpdatedTime]);

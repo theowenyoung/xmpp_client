@@ -39,8 +39,8 @@ class Log {
   static void xmppp_receiving(String message) {
     if (logXmpp) {
       if (!logPing) {
-        if (message.contains('urn:xmpp:sm') ||
-            message.contains('urn:xmpp:ping') ||
+        // message.contains('urn:xmpp:sm') ||
+        if (message.contains('urn:xmpp:ping') ||
             message.contains("id='ping_")) {
           return;
         }
@@ -53,8 +53,8 @@ class Log {
   static void xmppp_sending(String message) {
     if (logXmpp) {
       if (!logPing) {
-        if (message.contains('urn:xmpp:sm') ||
-            message.contains('urn:xmpp:ping')) {
+        // message.contains('urn:xmpp:sm') ||
+        if (message.contains('urn:xmpp:ping')) {
           return;
         }
       }

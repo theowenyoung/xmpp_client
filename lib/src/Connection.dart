@@ -5,13 +5,8 @@ import 'package:collection/collection.dart' show IterableExtension;
 import 'package:xml/xml.dart' as xml;
 import 'package:synchronized/synchronized.dart';
 import 'package:xmpp_stone/src/ReconnectionManager.dart';
-import 'package:xmpp_stone/src/account/XmppAccountSettings.dart';
-
-import 'package:xmpp_stone/src/data/Jid.dart';
 import 'package:xmpp_stone/src/elements/nonzas/Nonza.dart';
-import 'package:xmpp_stone/src/elements/stanzas/AbstractStanza.dart';
 import 'package:xmpp_stone/src/elements/stanzas/IqStanza.dart';
-import 'package:xmpp_stone/src/extensions/ping/PingManager.dart';
 import 'package:xmpp_stone/src/features/ConnectionNegotatiorManager.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/CarbonsNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/MAMNegotiator.dart';
@@ -19,15 +14,9 @@ import 'package:xmpp_stone/src/features/servicediscovery/ServiceDiscoveryNegotia
 import 'package:xmpp_stone/src/features/servicediscovery/InboxNegotiator.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common/sqflite_dev.dart';
-
-import 'package:xmpp_stone/src/features/streammanagement/StreamManagmentModule.dart';
 import 'package:xmpp_stone/src/parser/StanzaParser.dart';
-import 'package:xmpp_stone/src/presence/PresenceManager.dart';
-import 'package:xmpp_stone/src/roster/RosterManager.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
-
-import 'logger/Log.dart';
-import './DbProvider.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 enum XmppConnectionState {
   Idle,
@@ -164,16 +153,42 @@ class Connection {
   XmppConnectionState _state = XmppConnectionState.Idle;
   XmppConnectionState get state => _state;
   ReconnectionManager? reconnectionManager;
-
+  Timer? timer;
+  ConnectivityResult? networkConnection;
   Connection(this.account) {
     StreamManagementModule.getInstance(this);
     RosterManager.getInstance(this);
     PresenceManager.getInstance(this);
     MessageHandler.getInstance(this);
-    PingManager.getInstance(this, enablePing: false);
+    PingManager.getInstance(
+      this,
+    );
     RoomManager.getInstance(this);
     connectionNegotatiorManager = ConnectionNegotiatorManager(this, account);
-    reconnectionManager = ReconnectionManager(this);
+    // reconnectionManager = ReconnectionManager(this);
+    // Timer.periodic(Duration(seconds: 2), (thetimer) async {
+    //   timer = thetimer;
+    //   final theNetworkConnection = await Connectivity().checkConnectivity();
+    //   // TODO check
+    //   print('timer $theNetworkConnection');
+    //   if (networkConnection != null) {
+    //     if (theNetworkConnection == ConnectivityResult.none &&
+    //         theNetworkConnection != networkConnection) {
+    //       networkConnection = theNetworkConnection;
+    //       handleConnectionError('network connection lost');
+    //     } else if (networkConnection == ConnectivityResult.none &&
+    //         theNetworkConnection != ConnectivityResult.none &&
+    //         (_state == XmppConnectionState.Closed ||
+    //             _state == XmppConnectionState.ForcefullyClosed)) {
+    //       // reconnect();
+    //       networkConnection = theNetworkConnection;
+    //     } else {
+    //       networkConnection = theNetworkConnection;
+    //     }
+    //   } else {
+    //     networkConnection = theNetworkConnection;
+    //   }
+    // });
   }
   Future<void> init() async {
     // init sqlite
@@ -219,8 +234,10 @@ xml:lang='zh'
     return response1;
   }
 
-  void reconnect({bool force = false}) {
-    if (_state == XmppConnectionState.ForcefullyClosed || force) {
+  void reconnect() {
+    if (_state == XmppConnectionState.Closed) {
+      connect();
+    } else {
       setState(XmppConnectionState.Reconnecting);
       openSocket();
     }
@@ -241,29 +258,32 @@ xml:lang='zh'
   }
 
   Future<void> openSocket() async {
-    connectionNegotatiorManager.init();
+    if (_state != XmppConnectionState.Reconnecting) {
+      connectionNegotatiorManager.init();
+    } else {
+      connectionNegotatiorManager.initReconnectNegotiatorList();
+    }
     setState(XmppConnectionState.SocketOpening);
     try {
+      if (_socket != null) {
+        _socket!.close();
+        _socket = null;
+      }
       await Socket.connect(account.host ?? account.domain, account.port,
               timeout: Duration(seconds: 10))
           .then((Socket socket) {
         // if not closed in meantime
-        if (_state != XmppConnectionState.Closed) {
-          setState(XmppConnectionState.SocketOpened);
-          _socket = socket;
-          socket
-              .cast<List<int>>()
-              .transform(utf8.decoder)
-              .map(prepareStreamResponse)
-              .listen(handleResponse, onDone: handleConnectionDone);
-          try {
-            _openStream();
-          } catch (e) {
-            handleConnectionDone();
-          }
-        } else {
-          Log.d(TAG, 'Closed in meantime');
-          socket.close();
+        _socket = socket;
+        setState(XmppConnectionState.SocketOpened);
+        socket
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .map(prepareStreamResponse)
+            .listen(handleResponse, onDone: handleConnectionDone);
+        try {
+          _openStream();
+        } catch (e) {
+          handleConnectionDone();
         }
       });
     } on SocketException catch (error) {
@@ -292,6 +312,7 @@ xml:lang='zh'
         }
       }
     }
+    firstAuthenticated = false;
     authenticated = false;
   }
 
@@ -315,6 +336,7 @@ xml:lang='zh'
     InboxNegotiator.removeInstance(this);
     RoomManager.removeInstance(this);
     reconnectionManager?.close();
+    timer?.cancel();
     _socket?.close();
   }
 
@@ -473,10 +495,6 @@ xml:lang='zh'
       _socket!.write(message);
       Log.xmppp_sending(message);
     } else {
-      // try to reconnect
-      if (_state != XmppConnectionState.Reconnecting) {
-        reconnect(force: true);
-      }
       Log.i('socket', 'Send Message Failed, Socket closed');
       throw Exception('Send Message Failed, Connection losed');
     }

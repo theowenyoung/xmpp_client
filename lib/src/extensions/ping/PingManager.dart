@@ -13,7 +13,6 @@ class PingManager {
   Timer? timer;
   late StreamSubscription<XmppConnectionState> _xmppConnectionStateSubscription;
   late StreamSubscription<AbstractStanza?> _abstractStanzaSubscription;
-
   PingManager(
     this._connection,
   ) {
@@ -23,13 +22,12 @@ class PingManager {
         _connection.inStanzasStream.listen(_processStanza);
   }
 
-  static PingManager getInstance(Connection connection,
-      {bool? enablePing = true}) {
+  static PingManager getInstance(
+    Connection connection,
+  ) {
     var manager = _instances[connection];
     if (manager == null) {
-      manager = PingManager(
-        connection,
-      );
+      manager = PingManager(connection);
       _instances[connection] = manager;
     }
     return manager;
@@ -63,13 +61,16 @@ class PingManager {
   }
 
   void ping() {
+    // check is connection is opened
+
     // <ping xmlns="urn:xmpp:ping"/>
     final iqElement = IqStanza(
         'ping_' + AbstractStanza.getRandomId(), IqStanzaType.GET,
         to: _connection.account.domain);
     final pingElement = XmppElement('ping', null, 'urn:xmpp:ping');
     iqElement.addChild(pingElement);
-    timer = Timer(Duration(seconds: 30), () async {
+    // TODO time to 30
+    timer = Timer(Duration(seconds: 3), () async {
       // todo
       try {
         await _connection.getIq(iqElement,
@@ -77,10 +78,12 @@ class PingManager {
               seconds: 3,
             ),
             addToOutStream: false);
+        print("ping success");
         retryCount = 0;
         // next
         ping();
       } catch (e) {
+        print("ping fail");
         if (retryCount < maxRetryCount) {
           retryCount++;
           Log.i(TAG, 'retry $retryCount');

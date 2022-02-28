@@ -97,7 +97,7 @@ class StreamManagementModule extends Negotiator {
       if (!_connection.isOpened() && timer != null) {
         timer!.cancel();
       }
-      ;
+
       if (state == XmppConnectionState.Closed) {
         streamState = StreamState();
         //state = XmppConnectionState.Idle;
@@ -118,6 +118,7 @@ class StreamManagementModule extends Negotiator {
         SMNonza.match(nonzas[0]) &&
         _connection.authenticated) {
       state = NegotiatorState.NEGOTIATING;
+      inNonzaSubscription?.cancel();
       inNonzaSubscription = _connection.inNonzasStream.listen(parseNonza);
       if (streamState.isResumeAvailable()) {
         tryToResumeStream();
@@ -129,17 +130,19 @@ class StreamManagementModule extends Negotiator {
 
   @override
   bool isReady() {
-    return super.isReady() &&
+    final superReady = super.isReady();
+
+    return superReady &&
         (isResumeAvailable() ||
             (_connection.account.resourceBinded && _connection.authenticated));
   }
 
   void parseNonza(Nonza nonza) {
     if (state == NegotiatorState.NEGOTIATING) {
-      if (EnabledNonza.match(nonza)) {
-        handleEnabled(nonza);
-      } else if (ResumedNonza.match(nonza)) {
+      if (ResumedNonza.match(nonza)) {
         resumeState(nonza);
+      } else if (EnabledNonza.match(nonza)) {
+        handleEnabled(nonza);
       } else if (FailedNonza.match(nonza)) {
         if (streamState.tryingToResume) {
           Log.d(TAG, 'Resuming failed');
@@ -184,12 +187,21 @@ class StreamManagementModule extends Negotiator {
     }
     timer = Timer.periodic(
         Duration(milliseconds: 2000), (Timer t) => sendAckRequest());
+    outStanzaSubscription?.cancel();
     outStanzaSubscription = _connection.outStanzasStream.listen(parseOutStanza);
+    inStanzaSubscription?.cancel();
     inStanzaSubscription = _connection.inStanzasStream.listen(parseInStanza);
   }
 
   void handleResumed(Nonza nonza) {
-    parseAckResponse(nonza.getAttribute('h')!.value!);
+    // sync sent count
+    streamState.nonConfirmedSentStanzas.clear();
+    final rawValue = nonza.getAttribute('h')!.value!;
+    final lastDeliveredStanza = int.parse(rawValue);
+
+    streamState.lastSentStanza = lastDeliveredStanza;
+
+    parseAckResponse(rawValue);
 
     state = NegotiatorState.DONE;
     if (timer != null) {
@@ -225,5 +237,7 @@ class StreamManagementModule extends Negotiator {
   void reset() {
     negotiatorStateStreamController = StreamController();
     backToIdle();
+    outStanzaSubscription?.cancel();
+    inStanzaSubscription?.cancel();
   }
 }

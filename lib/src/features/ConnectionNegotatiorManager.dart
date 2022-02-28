@@ -87,12 +87,12 @@ class ConnectionNegotiatorManager {
       activeNegotiator = negotiatorWithData.negotiator;
       activeNegotiator!.negotiate(negotiatorWithData.supportedNonzas);
       //TODO: this should be refactored
-      if (activeSubscription != null) activeSubscription!.cancel();
       if (activeNegotiator != null) {
         Log.d(TAG, 'ACTIVE FEATURE: ${negotiatorWithData.negotiator}');
       }
 
       try {
+        activeSubscription?.cancel();
         activeSubscription =
             activeNegotiator!.featureStateStream.listen(stateListener);
       } catch (e) {
@@ -103,6 +103,15 @@ class ConnectionNegotiatorManager {
       activeNegotiator = null;
       _connection.doneParsingFeatures();
     }
+  }
+
+  void initReconnectNegotiatorList() {
+    cleanNegotiators();
+    supportedNegotiatorList.add(StartTlsNegotiator(_connection)); //priority 1
+    supportedNegotiatorList
+        .add(SaslAuthenticationFeature(_connection, _accountSettings.password));
+    var streamManagement = StreamManagementModule.getInstance(_connection);
+    supportedNegotiatorList.add(streamManagement);
   }
 
   void _initSupportedNegotiatorList() {

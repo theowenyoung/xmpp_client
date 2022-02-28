@@ -137,7 +137,7 @@ class RoomManager {
         final endTime = nowTime - (10 * 1000);
         final db = _connection.db;
         final messages = await db.getMessages(status: 0, endTime: endTime);
-        print("timeout message: ${messages.length}");
+        // print("timeout message: ${messages.length}");
         if (messages.length > 0) {
           for (final message in messages) {
             await db.updateMessageStatus(message.id, 10);
@@ -621,6 +621,11 @@ class RoomManager {
         // listen
 
         break;
+      case XmppConnectionState.Resumed:
+        Log.d(TAG, "Chat connection Resumed");
+        _connectionUpdatedStreamController
+            .add(Event(ConnectionState.resumed, "Resumed"));
+        break;
 
       default:
     }
@@ -631,5 +636,6 @@ enum ChatState { inactive, active, gone, composing, paused }
 enum ConnectionState {
   connecting,
   connected,
+  resumed,
   disconnected,
 }
