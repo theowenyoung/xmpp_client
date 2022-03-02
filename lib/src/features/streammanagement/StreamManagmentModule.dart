@@ -15,6 +15,10 @@ import 'package:xmpp_stone/src/features/streammanagement/StreamState.dart';
 import '../../../xmpp_stone.dart';
 import '../Negotiator.dart';
 
+class StreamCallback {
+  List<Completer> completers = [];
+}
+
 class StreamManagementModule extends Negotiator {
   static const TAG = 'StreamManagementModule';
 
@@ -34,11 +38,11 @@ class StreamManagementModule extends Negotiator {
     instance?.timer?.cancel();
     instance?.inNonzaSubscription?.cancel();
     instance?.outStanzaSubscription?.cancel();
-    instance?.inNonzaSubscription?.cancel();
     instance?._xmppConnectionStateSubscription.cancel();
     instances.remove(connection);
   }
 
+  final Map<String, StreamCallback> _callbacks = {};
   StreamState streamState = StreamState();
   final Connection _connection;
   late StreamSubscription<XmppConnectionState> _xmppConnectionStateSubscription;
@@ -49,11 +53,27 @@ class StreamManagementModule extends Negotiator {
   bool ackTurnedOn = true;
   Timer? timer;
 
-  final StreamController<AbstractStanza> _deliveredStanzasStreamController =
-      StreamController.broadcast();
+  Future<void> writeStanzaAsync(AbstractStanza stanza,
+      {int timeout = 10}) async {
+    final stanzaId = stanza.id;
+    var completer = Completer();
+    if (_callbacks[stanzaId] == null) {
+      _callbacks[stanzaId] = StreamCallback();
+    }
 
-  Stream<AbstractStanza> get deliveredStanzasStream {
-    return _deliveredStanzasStreamController.stream;
+    _callbacks[stanzaId]!.completers.add(completer);
+    // Timer(Duration(seconds: timeout), () {
+    //   if (_callbacks[stanzaId] != null) {
+    //     streamState.lastSentStanza--;
+    //     _callbacks[stanzaId]!.completers.forEach((completer) {
+    //       // reduce 1
+    //       completer.completeError(Exception('request timeout'));
+    //     });
+    //     _callbacks.remove(stanzaId);
+    //   }
+    // });
+    _connection.writeStanza(stanza);
+    return completer.future;
   }
 
   void sendAckRequest() {
@@ -70,18 +90,37 @@ class StreamManagementModule extends Negotiator {
     var lastDeliveredStanza = int.parse(rawValue);
 
     var shouldStay = streamState.lastSentStanza - lastDeliveredStanza;
+
     if (shouldStay < 0) shouldStay = 0;
     while (streamState.nonConfirmedSentStanzas.length > shouldStay) {
       var stanza =
           streamState.nonConfirmedSentStanzas.removeFirst() as AbstractStanza;
-      if (ackTurnedOn) {
-        _deliveredStanzasStreamController.add(stanza);
-      }
       if (stanza.id != null) {
         Log.d(TAG, 'Delivered: ${stanza.id}');
+        final stanzaId = stanza.id;
+        if (_callbacks[stanzaId] != null) {
+          // is ok
+          final callback = _callbacks[stanzaId]!;
+          // success
+          callback.completers.forEach((completer) {
+            completer.complete();
+          });
+
+          _callbacks.remove(stanzaId);
+        }
       } else {
-        Log.d(TAG, 'Delivered stanza without id ${stanza.name}');
+        Log.d(TAG, 'Delivered stanza without id ${stanza.toString()}');
       }
+    }
+    // if we have a pending ack request,  fail it.
+    if (streamState.nonConfirmedSentStanzas.isNotEmpty) {
+      rejectUnconfirmedStanzas();
+      print("streamState.lastSentStanza ${streamState.lastSentStanza}");
+      print(
+          "streamState.nonConfirmedSentStanzas.length ${streamState.nonConfirmedSentStanzas.length}");
+      streamState.lastSentStanza = streamState.lastSentStanza -
+          streamState.nonConfirmedSentStanzas.length;
+      streamState.nonConfirmedSentStanzas.clear();
     }
   }
 
@@ -193,14 +232,31 @@ class StreamManagementModule extends Negotiator {
     inStanzaSubscription = _connection.inStanzasStream.listen(parseInStanza);
   }
 
+  void rejectUnconfirmedStanzas() {
+    if (streamState.nonConfirmedSentStanzas.isNotEmpty) {
+      streamState.nonConfirmedSentStanzas.forEach((element) {
+        final stanzaId = element.id;
+        if (_callbacks[stanzaId] != null) {
+          // is ok
+          final callback = _callbacks[stanzaId]!;
+          // success
+          callback.completers.forEach((completer) {
+            completer.completeError(Exception("Send fail"));
+          });
+
+          _callbacks.remove(stanzaId);
+        }
+      });
+    }
+  }
+
   void handleResumed(Nonza nonza) {
     // sync sent count
+    rejectUnconfirmedStanzas();
     streamState.nonConfirmedSentStanzas.clear();
     final rawValue = nonza.getAttribute('h')!.value!;
     final lastDeliveredStanza = int.parse(rawValue);
-
     streamState.lastSentStanza = lastDeliveredStanza;
-
     parseAckResponse(rawValue);
 
     state = NegotiatorState.DONE;

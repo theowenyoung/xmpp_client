@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:xmpp_stone/src/Connection.dart';
 import 'logger/Log.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ReconnectionManager {
   static const TAG = 'ReconnectionManager';
@@ -13,7 +14,8 @@ class ReconnectionManager {
   int counter = 0;
   Timer? timer;
   late StreamSubscription<XmppConnectionState> _xmppConnectionStateSubscription;
-
+  ConnectivityResult? networkConnection;
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
   ReconnectionManager(Connection connection) {
     _connection = connection;
     _xmppConnectionStateSubscription =
@@ -21,6 +23,32 @@ class ReconnectionManager {
     initialTimeout = _connection.account.reconnectionTimeout;
     totalReconnections = _connection.account.totalReconnections;
     timeOutInMs = initialTimeout;
+    Connectivity().checkConnectivity().then((result) {
+      networkConnection = result;
+    });
+
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .listen((ConnectivityResult theNetworkConnection) {
+      // Got a new connectivity status!
+      print('network changed $theNetworkConnection');
+      if (networkConnection != null) {
+        if (theNetworkConnection == ConnectivityResult.none &&
+            theNetworkConnection != networkConnection) {
+          networkConnection = theNetworkConnection;
+          // do nothing
+        } else if (networkConnection == ConnectivityResult.none &&
+            theNetworkConnection != ConnectivityResult.none &&
+            _connection.state == XmppConnectionState.ForcefullyClosed) {
+          _connection.reconnect();
+          networkConnection = theNetworkConnection;
+        } else {
+          networkConnection = theNetworkConnection;
+        }
+      } else {
+        networkConnection = theNetworkConnection;
+      }
+    });
   }
 
   void connectionStateHandler(XmppConnectionState state) {
@@ -58,5 +86,6 @@ class ReconnectionManager {
   void close() {
     timer?.cancel();
     _xmppConnectionStateSubscription.cancel();
+    _connectivitySubscription.cancel();
   }
 }

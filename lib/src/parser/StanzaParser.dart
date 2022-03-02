@@ -22,7 +22,9 @@ class StanzaParser {
     AbstractStanza? stanza;
     var id = element.getAttribute('id');
     if (id == null) {
-      Log.d(TAG, 'No id found for stanza');
+      // Log.d(TAG, 'No id found for stanza');
+      // throw Exception('No id found for stanza');
+      id = AbstractStanza.getRandomId();
     }
 
     if (element.name.local == 'iq') {
@@ -52,7 +54,7 @@ class StanzaParser {
     return stanza;
   }
 
-  static MessageStanza _parseMessageStanza(String? id, xml.XmlElement element) {
+  static MessageStanza _parseMessageStanza(String id, xml.XmlElement element) {
     var typeString = element.getAttribute('type');
     var type = MessageStanzaType.UNKOWN;
     if (typeString == null) {
@@ -93,8 +95,8 @@ class StanzaParser {
   }
 
   static PresenceStanza _parsePresenceStanza(
-      String? id, xml.XmlElement element) {
-    var presenceStanza = PresenceStanza();
+      String id, xml.XmlElement element) {
+    var presenceStanza = PresenceStanza(id);
     presenceStanza.id = id;
     return presenceStanza;
   }

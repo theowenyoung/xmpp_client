@@ -60,10 +60,6 @@ class XmppElement {
     return xmlElement;
   }
 
-  String? getNameSpace() {
-    ;
-  }
-
   String? get namespace {
     return getAttribute('xmlns')?.value;
   }

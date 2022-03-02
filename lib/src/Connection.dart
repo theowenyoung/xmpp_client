@@ -61,7 +61,7 @@ class Connection {
 
   XmppAccountSettings account;
 
-  StreamManagementModule? streamManagementModule;
+  late StreamManagementModule streamManagementModule;
   final Map<String, Callback> _callbacks = {};
   final Map<String, List<AbstractStanza>> _queryResults = {};
   final List<Message> queueMessage = [];
@@ -153,42 +153,16 @@ class Connection {
   XmppConnectionState _state = XmppConnectionState.Idle;
   XmppConnectionState get state => _state;
   ReconnectionManager? reconnectionManager;
-  Timer? timer;
-  ConnectivityResult? networkConnection;
   Connection(this.account) {
     StreamManagementModule.getInstance(this);
-    RosterManager.getInstance(this);
+    // RosterManager.getInstance(this);
     PresenceManager.getInstance(this);
-    MessageHandler.getInstance(this);
     PingManager.getInstance(
       this,
     );
     RoomManager.getInstance(this);
     connectionNegotatiorManager = ConnectionNegotiatorManager(this, account);
-    // reconnectionManager = ReconnectionManager(this);
-    // Timer.periodic(Duration(seconds: 2), (thetimer) async {
-    //   timer = thetimer;
-    //   final theNetworkConnection = await Connectivity().checkConnectivity();
-    //   // TODO check
-    //   print('timer $theNetworkConnection');
-    //   if (networkConnection != null) {
-    //     if (theNetworkConnection == ConnectivityResult.none &&
-    //         theNetworkConnection != networkConnection) {
-    //       networkConnection = theNetworkConnection;
-    //       handleConnectionError('network connection lost');
-    //     } else if (networkConnection == ConnectivityResult.none &&
-    //         theNetworkConnection != ConnectivityResult.none &&
-    //         (_state == XmppConnectionState.Closed ||
-    //             _state == XmppConnectionState.ForcefullyClosed)) {
-    //       // reconnect();
-    //       networkConnection = theNetworkConnection;
-    //     } else {
-    //       networkConnection = theNetworkConnection;
-    //     }
-    //   } else {
-    //     networkConnection = theNetworkConnection;
-    //   }
-    // });
+    reconnectionManager = ReconnectionManager(this);
   }
   Future<void> init() async {
     // init sqlite
@@ -235,11 +209,21 @@ xml:lang='zh'
   }
 
   void reconnect() {
+    if (_state == XmppConnectionState.Reconnecting) {
+      return;
+    }
+
     if (_state == XmppConnectionState.Closed) {
       connect();
     } else {
+      // first try to ping
       setState(XmppConnectionState.Reconnecting);
-      openSocket();
+      PingManager.getInstance(this).rawPing().then((_) {
+        // success ping
+      }).catchError((e) {
+        // error
+        openSocket();
+      });
     }
   }
 
@@ -325,9 +309,8 @@ xml:lang='zh'
   /// If you intend to re-use the connection later, consider just calling [close] instead.
   void dispose() {
     close();
-    RosterManager.removeInstance(this);
+    // RosterManager.removeInstance(this);
     PresenceManager.removeInstance(this);
-    MessageHandler.removeInstance(this);
     PingManager.removeInstance(this);
     ServiceDiscoveryNegotiator.removeInstance(this);
     StreamManagementModule.removeInstance(this);
@@ -336,7 +319,6 @@ xml:lang='zh'
     InboxNegotiator.removeInstance(this);
     RoomManager.removeInstance(this);
     reconnectionManager?.close();
-    timer?.cancel();
     _socket?.close();
   }
 
@@ -363,6 +345,7 @@ xml:lang='zh'
   String _unparsedXmlResponse = '';
 
   void handleResponse(String response) {
+    // Log.d(TAG, 'Received response: $response');
     String fullResponse;
     if (_unparsedXmlResponse.isNotEmpty) {
       if (response.length > 12) {
@@ -400,7 +383,6 @@ xml:lang='zh'
           .map((xmlElement) => StanzaParser.parseStanza(xmlElement))
           .forEach((stanza) {
         // check if exist queryid
-        //
         _inStanzaStreamController.add(stanza);
 
         // check type
@@ -505,6 +487,10 @@ xml:lang='zh'
     _outStanzaStreamController.add(stanza);
   }
 
+  Future<void> writeStanzaAsync(AbstractStanza stanza) {
+    return streamManagementModule.writeStanzaAsync(stanza);
+  }
+
   Future<QueryResult> getIq(IqStanza stanza,
       {Duration? timeout, bool? addToOutStream}) {
     var completer = Completer<QueryResult>();
@@ -518,7 +504,7 @@ xml:lang='zh'
     if (stanza is IqStanza) {
       // check id and query id
       if (stanza.id != null) {
-        final iqId = stanza.id!;
+        final iqId = stanza.id;
         final queryId = stanza.queryId;
 
         if (queryId != null) {

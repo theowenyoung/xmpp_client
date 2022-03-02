@@ -14,11 +14,13 @@ class PresenceManager implements PresenceApi {
 
   List<PresenceStanza> requests = <PresenceStanza>[];
 
-  final StreamController<PresenceData> _presenceStreamController = StreamController<PresenceData>.broadcast();
+  final StreamController<PresenceData> _presenceStreamController =
+      StreamController<PresenceData>.broadcast();
 
   final StreamController<SubscriptionEvent> _subscribeStreamController =
       StreamController<SubscriptionEvent>.broadcast();
-  final StreamController<PresenceErrorEvent> _errorStreamController = StreamController<PresenceErrorEvent>.broadcast();
+  final StreamController<PresenceErrorEvent> _errorStreamController =
+      StreamController<PresenceErrorEvent>.broadcast();
 
   PresenceData _selfPresence = PresenceData(PresenceShowElement.CHAT, '', null);
 
@@ -71,8 +73,8 @@ class PresenceManager implements PresenceApi {
 
   @override
   void acceptSubscription(Jid? to) {
-    var presenceStanza = PresenceStanza.withType(PresenceType.SUBSCRIBED);
-    presenceStanza.id = _getPresenceId();
+    var presenceStanza =
+        PresenceStanza.withType(PresenceType.SUBSCRIBED, _getPresenceId());
     presenceStanza.toJid = to;
     requests.add(presenceStanza);
     _connection.writeStanza(presenceStanza);
@@ -80,8 +82,8 @@ class PresenceManager implements PresenceApi {
 
   @override
   void declineSubscription(Jid to) {
-    var presenceStanza = PresenceStanza.withType(PresenceType.UNSUBSCRIBED);
-    presenceStanza.id = _getPresenceId();
+    var presenceStanza =
+        PresenceStanza.withType(PresenceType.UNSUBSCRIBED, _getPresenceId());
     presenceStanza.toJid = to;
     requests.add(presenceStanza);
     _connection.writeStanza(presenceStanza);
@@ -89,7 +91,7 @@ class PresenceManager implements PresenceApi {
 
   @override
   void sendDirectPresence(PresenceData presence, Jid to) {
-    var presenceStanza = PresenceStanza();
+    var presenceStanza = PresenceStanza(AbstractStanza.getRandomId());
     presenceStanza.toJid = to;
     presenceStanza.show = presence.showElement;
     presenceStanza.status = presence.status;
@@ -98,7 +100,8 @@ class PresenceManager implements PresenceApi {
 
   @override
   void askDirectPresence(Jid to) {
-    var presenceStanza = PresenceStanza.withType(PresenceType.PROBE);
+    var presenceStanza = PresenceStanza.withType(
+        PresenceType.PROBE, AbstractStanza.getRandomId());
     presenceStanza.toJid = to;
     presenceStanza.fromJid = _connection.fullJid;
     _connection.writeStanza(presenceStanza);
@@ -106,7 +109,7 @@ class PresenceManager implements PresenceApi {
 
   @override
   void sendPresence(PresenceData presence) {
-    var presenceStanza = PresenceStanza();
+    var presenceStanza = PresenceStanza(AbstractStanza.getRandomId());
     presenceStanza.show = presence.showElement;
     presenceStanza.status = presence.status;
     _connection.writeStanza(presenceStanza);
@@ -114,8 +117,8 @@ class PresenceManager implements PresenceApi {
 
   @override
   void subscribe(Jid to) {
-    var presenceStanza = PresenceStanza.withType(PresenceType.SUBSCRIBE);
-    presenceStanza.id = _getPresenceId();
+    var presenceStanza =
+        PresenceStanza.withType(PresenceType.SUBSCRIBE, _getPresenceId());
     presenceStanza.toJid = to;
     requests.add(presenceStanza);
     _connection.writeStanza(presenceStanza);
@@ -123,8 +126,8 @@ class PresenceManager implements PresenceApi {
 
   @override
   void unsubscribe(Jid to) {
-    var presenceStanza = PresenceStanza.withType(PresenceType.UNSUBSCRIBE);
-    presenceStanza.id = _getPresenceId();
+    var presenceStanza =
+        PresenceStanza.withType(PresenceType.UNSUBSCRIBE, _getPresenceId());
     presenceStanza.toJid = to;
     requests.add(presenceStanza);
     _connection.writeStanza(presenceStanza);
@@ -133,7 +136,8 @@ class PresenceManager implements PresenceApi {
   void _processPresenceStanza(PresenceStanza? presenceStanza) {
     if (presenceStanza!.type == null) {
       //presence event
-      _presenceStreamController.add(PresenceData(presenceStanza.show, presenceStanza.status, presenceStanza.fromJid));
+      _presenceStreamController.add(PresenceData(
+          presenceStanza.show, presenceStanza.status, presenceStanza.fromJid));
     } else {
       switch (presenceStanza.type) {
         case PresenceType.SUBSCRIBE:
@@ -163,7 +167,8 @@ class PresenceManager implements PresenceApi {
           break;
         case PresenceType.UNAVAILABLE:
           //presence event
-          _presenceStreamController.add(PresenceData(PresenceShowElement.XA, 'Unavailable', presenceStanza.fromJid));
+          _presenceStreamController.add(PresenceData(
+              PresenceShowElement.XA, 'Unavailable', presenceStanza.fromJid));
           break;
       }
     }
@@ -181,7 +186,7 @@ class PresenceManager implements PresenceApi {
   }
 
   void _sendInitialPresence() {
-    var initialPresence = PresenceStanza();
+    var initialPresence = PresenceStanza(AbstractStanza.getRandomId());
     _connection.writeStanza(initialPresence);
   }
 
@@ -189,7 +194,8 @@ class PresenceManager implements PresenceApi {
     //TODO Add more handling
     var errorEvent = PresenceErrorEvent();
     errorEvent.presenceStanza = presenceStanza;
-    var errorTypeString = presenceStanza.getChild('error')?.getAttribute('type')?.value;
+    var errorTypeString =
+        presenceStanza.getChild('error')?.getAttribute('type')?.value;
     if (errorTypeString != null && errorTypeString == 'modify') {
       errorEvent.type = PresenceErrorType.MODIFY;
     }

@@ -154,6 +154,7 @@ class DbProvider {
     return roomList;
   }
 
+  // sort is sql sort , the result will always be asc
   Future<List<Message>> getMessages({
     String? roomId,
     int? beforeId,
@@ -165,9 +166,35 @@ class DbProvider {
     int limit = 30,
     String sort = 'desc',
   }) async {
-    final messages = await db.rawQuery(
-        'SELECT $columnId,$columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt,$columnStatus FROM $tableMessages where $columnDeletedAt is NULL and (?3 is null or $columnClientId=?3) and (?4 is null or $columnStatus=?4) and (?5 is null or $columnCreatedAt<?5) and (?6 is null or $columnUpdatedAt<?6) and (?1 is null or $columnRoomBareJid=?1) and (?2 is null or $columnId<?2) order by $columnId $sort limit $limit',
-        [roomId, beforeId, clientId, status, endTime, endUpdatedTime]);
+    // sqlite bug, query params can not be null
+    final nullValue = "nullxxssfdsafsdafsafsdaflkjf;dsalf@@@@";
+    final messages = await db.query(tableMessages,
+        columns: [
+          columnId,
+          columnServerId,
+          columnClientId,
+          columnFromResource,
+          columnFromBareJid,
+          columnRoomResource,
+          columnRoomBareJid,
+          columnMessageContent,
+          columnSearchBody,
+          columnCreatedAt,
+          columnUpdatedAt,
+          columnStatus
+        ],
+        where:
+            '$columnDeletedAt is NULL and (?3 = "$nullValue" or $columnClientId=?3) and (?4  = "$nullValue" or $columnStatus=?4) and (?5  = "$nullValue" or $columnCreatedAt<?5) and (?6  = "$nullValue" or $columnUpdatedAt<?6) and (?1  = "$nullValue" or $columnRoomBareJid=?1) and (?2  = "$nullValue" or $columnId<?2)',
+        whereArgs: [
+          roomId ?? nullValue,
+          beforeId ?? nullValue,
+          clientId ?? nullValue,
+          status ?? nullValue,
+          endTime ?? nullValue,
+          endUpdatedTime ?? nullValue
+        ],
+        orderBy: "$columnId $sort",
+        limit: limit);
     var messageList = <Message>[];
     for (var rawMessage in messages) {
       final messageXmlString = rawMessage[columnMessageContent] as String;
@@ -204,7 +231,7 @@ class DbProvider {
     for (var message in messages) {
       final messageStanza = message.toStanza();
       final sql =
-          'INSERT INTO $tableMessages($columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)';
+          'INSERT INTO $tableMessages($columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt,$columnStatus) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,?11)';
       final values = [
         message.serverId,
         message.id,
@@ -215,7 +242,8 @@ class DbProvider {
         messageStanza.buildXmlString(),
         messageStanza.body,
         message.createdAt.millisecondsSinceEpoch,
-        message.createdAt.millisecondsSinceEpoch
+        message.createdAt.millisecondsSinceEpoch,
+        Message.deformatStatus(message.status)
       ];
       Log.d(TAG, 'insert $sql , $values');
       try {
@@ -350,7 +378,7 @@ class DbProvider {
     var batch = db.batch();
     final messageStanza = message.bareMessageStanza ?? message.toStanza();
     final sql =
-        'INSERT INTO $tableMessages($columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        'INSERT INTO $tableMessages($columnServerId,$columnClientId,$columnFromResource,$columnFromBareJid,$columnRoomResource,$columnRoomBareJid,$columnMessageContent,$columnSearchBody,$columnCreatedAt,$columnUpdatedAt,$columnStatus) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)';
     final values = [
       message.serverId,
       message.id,
@@ -361,7 +389,8 @@ class DbProvider {
       messageStanza.buildXmlString(),
       message.text,
       message.createdAt.millisecondsSinceEpoch,
-      message.createdAt.millisecondsSinceEpoch
+      message.createdAt.millisecondsSinceEpoch,
+      Message.deformatStatus(message.status)
     ];
     try {
       batch.rawInsert(sql, values);

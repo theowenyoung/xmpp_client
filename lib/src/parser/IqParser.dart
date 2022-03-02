@@ -5,7 +5,7 @@ import '../logger/Log.dart';
 class IqParser {
   static const TAG = 'IqParser';
 
-  static IqStanza parseIqStanza(String? id, xml.XmlElement element) {
+  static IqStanza parseIqStanza(String id, xml.XmlElement element) {
     var typeString = element.getAttribute('type');
     String? queryId;
     if (typeString == 'result' && element.getAttribute('id') != null) {

@@ -49,7 +49,7 @@ class MessageThumbnail {
 class MessageStanza extends AbstractStanza {
   MessageStanzaType type;
 
-  MessageStanza(id, this.type, {String? queryId}) {
+  MessageStanza(String id, this.type, {String? queryId}) : super(id) {
     name = 'message';
     this.id = id;
     if (queryId != null) {

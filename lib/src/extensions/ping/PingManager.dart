@@ -47,7 +47,8 @@ class PingManager {
     }
 
     // when ready send ping test interval 5000
-    if (event == XmppConnectionState.Ready) {
+    if (event == XmppConnectionState.Ready ||
+        event == XmppConnectionState.Resumed) {
       reset();
       if (_connection.account.pingEnabled) {
         ping();
@@ -60,24 +61,27 @@ class PingManager {
     retryCount = 0;
   }
 
-  void ping() {
-    // check is connection is opened
-
-    // <ping xmlns="urn:xmpp:ping"/>
+  Future<void> rawPing() async {
     final iqElement = IqStanza(
         'ping_' + AbstractStanza.getRandomId(), IqStanzaType.GET,
         to: _connection.account.domain);
     final pingElement = XmppElement('ping', null, 'urn:xmpp:ping');
     iqElement.addChild(pingElement);
-    // TODO time to 30
-    timer = Timer(Duration(seconds: 3), () async {
+    await _connection.getIq(iqElement,
+        timeout: Duration(
+          seconds: 5,
+        ),
+        addToOutStream: true);
+  }
+
+  void ping() {
+    // check is connection is opened
+
+    // <ping xmlns="urn:xmpp:ping"/>
+    timer = Timer(Duration(seconds: 10), () async {
       // todo
       try {
-        await _connection.getIq(iqElement,
-            timeout: Duration(
-              seconds: 3,
-            ),
-            addToOutStream: false);
+        await rawPing();
         print("ping success");
         retryCount = 0;
         // next
@@ -107,6 +111,7 @@ class PingManager {
           var iqStanza = IqStanza(stanza.id, IqStanzaType.RESULT);
           iqStanza.fromJid = _connection.fullJid;
           iqStanza.toJid = stanza.fromJid;
+          Log.d(TAG, "response server ping ${iqStanza.id}");
           _connection.writeStanza(iqStanza);
         }
       }

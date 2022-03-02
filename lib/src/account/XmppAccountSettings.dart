@@ -13,6 +13,7 @@ class XmppAccountSettings {
   int reconnectionTimeout = 1000;
   bool ackEnabled = true;
   bool smResumable = true;
+  // TODO
   bool pingEnabled = false;
   late String dbPath;
   XmppAccountSettings(

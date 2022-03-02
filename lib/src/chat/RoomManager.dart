@@ -17,7 +17,7 @@ class RoomManager {
 
   static void removeInstance(Connection connection) {
     var instance = instances[connection];
-    instance?._roomMessageDeliverdSubscription.cancel();
+    // instance?._roomMessageDeliverdSubscription.cancel();
     instance?._connectionStateSubscription.cancel();
     instance?.timer?.cancel();
     instances.remove(connection);
@@ -39,7 +39,7 @@ class RoomManager {
       _connectionUpdatedStreamController.stream;
   final StreamController<Event<ConnectionState, String>>
       _connectionUpdatedStreamController = StreamController.broadcast();
-  late StreamSubscription<AbstractStanza> _roomMessageDeliverdSubscription;
+  // late StreamSubscription<AbstractStanza> _roomMessageDeliverdSubscription;
   bool isSyncedServerMessages = false;
   bool isSyncingServerMessages = false;
   Timer? timer;
@@ -64,7 +64,7 @@ class RoomManager {
         if (stanza.type == MessageStanzaType.ERROR) {
           print('error message');
           final db = _connection.db;
-          await db.updateMessageStatus(stanza.id!, 10);
+          await db.updateMessageStatus(stanza.id, 10);
           // get message
           final messages = await db.getMessages(clientId: stanza.id);
           if (messages.length > 0) {
@@ -78,6 +78,7 @@ class RoomManager {
       var message = Message.fromStanza(stanza,
           currentAccountJid: _connection.fullJid, status: 2);
       if (message != null) {
+        print("message333${message.id} ${message.status}");
         // check if room exists
         final roomId = message.room.id;
         // write to db
@@ -102,39 +103,15 @@ class RoomManager {
           _connection.queueMessage.add(message);
         }
       }
-
-      // sort
-    });
-
-    _roomMessageDeliverdSubscription = _connection
-        .streamManagementModule!.deliveredStanzasStream
-        .listen((AbstractStanza event) async {
-      if (event.id != null) {
-        // update to db
-        final db = _connection.db;
-        // get message
-        final messages = await db.getMessages(clientId: event.id);
-
-        if (messages.length > 0) {
-          final currentStatus = Message.deformatStatus(messages[0].status);
-          if (currentStatus < 1) {
-            // only make change when status is init
-            await db.updateMessageStatus(event.id!, 1);
-            messages[0].status = Message.formatStatus(1);
-            _roomMessageUpdatedStreamController
-                .add(Event(messages[0].room.id, messages[0]));
-          }
-        }
-      }
     });
     handleTimeoutMessages();
   }
   void handleTimeoutMessages() {
     // check loading message, change to error;
-    timer = Timer(Duration(seconds: 10), () async {
+    timer = Timer(Duration(seconds: 60), () async {
       if (_connection.db != null) {
         final nowTime = DateTime.now().millisecondsSinceEpoch;
-        final endTime = nowTime - (10 * 1000);
+        final endTime = nowTime - (60 * 1000);
         final db = _connection.db;
         final messages = await db.getMessages(status: 0, endTime: endTime);
         // print("timeout message: ${messages.length}");
@@ -212,22 +189,33 @@ class RoomManager {
     final messages = await db.getMessages(clientId: messageClientId);
     if (messages.isNotEmpty) {
       // change to sending status
-      await db.updateMessageStatus(messageClientId, 0);
-      final message = messages[0];
-      _connection.writeStanza(message.toStanza());
+      await rawSendMessage(messages[0].room.id, messages[0]);
     }
   }
 
-  void sendMessage(String roomId, Message message) {
-    final messageStanza = message.toStanza();
-    _connection.db.insertMessage(message).then((newMessage) {
-      if (newMessage != null) {
-        _connection.writeStanza(messageStanza);
-        _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
-      }
-    }).catchError((e) {
-      Log.e('save send message failed', e.toString());
-    });
+  Future<void> rawSendMessage(String roomId, Message newMessage) async {
+    final messageStanza = newMessage.toStanza();
+
+    _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+    try {
+      await _connection.writeStanzaAsync(messageStanza);
+      await _connection.db.updateMessageStatus(newMessage.id, 1);
+      newMessage.status = Message.formatStatus(1);
+      _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+    } catch (e) {
+      Log.d(TAG, 'send message error, ${newMessage.id}');
+      Log.d(TAG, e.toString());
+      await _connection.db.updateMessageStatus(newMessage.id, 10);
+      newMessage.status = MessageStatus.error;
+      _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+    }
+  }
+
+  Future<void> sendMessage(String roomId, Message message) async {
+    final newMessage = await _connection.db.insertMessage(message);
+    if (newMessage != null) {
+      await rawSendMessage(roomId, newMessage);
+    }
   }
 
   Message createFileMessage(
@@ -314,14 +302,7 @@ class RoomManager {
         final thumbnail = getThumbnail(message.images!.first);
         message.images!.first.thumbnail = thumbnail;
       }
-      return _connection.db.insertMessage(message).then((newMessage) {
-        if (newMessage != null) {
-          _connection.writeStanza(message.toStanza());
-          _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
-        }
-      }).catchError((e) {
-        Log.e('save send message failed', e.toString());
-      });
+      return sendMessage(roomId, message);
     } else if (message.files != null && message.files!.isNotEmpty) {
       final file = message.files!.first;
       final filePath = file.uri;
@@ -345,30 +326,10 @@ class RoomManager {
         final thumbnail = getThumbnail(message.files!.first);
         message.files!.first.thumbnail = thumbnail;
       }
-      return _connection.db.insertMessage(message).then((newMessage) {
-        if (newMessage != null) {
-          _connection.writeStanza(message.toStanza());
-          _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
-        }
-      }).catchError((e) {
-        Log.e('save send message failed', e.toString());
-      });
+      return sendMessage(roomId, message);
     } else {
       throw Exception('invalid file');
     }
-  }
-
-  void setChatState(String roomId, ChatState state) {
-    var stanza =
-        MessageStanza(AbstractStanza.getRandomId(), MessageStanzaType.CHAT);
-    stanza.toJid = Jid.fromFullJid(roomId);
-    stanza.fromJid = _connection.fullJid;
-    var stateElement = XmppElement();
-    stateElement.name = state.toString().split('.').last.toLowerCase();
-    stateElement.addAttribute(
-        XmppAttribute('xmlns', 'http://jabber.org/protocol/chatstates'));
-    stanza.addChild(stateElement);
-    _connection.writeStanza(stanza);
   }
 
   Future<QueryResult> markAsRead(String roomId) async {
@@ -430,17 +391,19 @@ class RoomManager {
 
   Future<void> syncServerMessages(
       {required String latestClientMessageId}) async {
+    print("syncServerMessages");
     final limit = 100;
     final localMessages =
         await _connection.db.getMessages(limit: limit, sort: 'desc');
-    var isNeedSync = false;
+    // TODO
+    var isNeedSync = true;
     DateTime? startTime;
     if (localMessages.isEmpty) {
       isNeedSync = true;
     } else if (localMessages.isNotEmpty) {
       if (localMessages.last.id != latestClientMessageId) {
         isNeedSync = true;
-        startTime = localMessages.last.createdAt;
+        // startTime = localMessages.last.createdAt;
       }
     }
     if (isNeedSync) {
