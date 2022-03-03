@@ -78,7 +78,6 @@ class RoomManager {
       var message = Message.fromStanza(stanza,
           currentAccountJid: _connection.fullJid, status: 2);
       if (message != null) {
-        print("message333${message.id} ${message.status}");
         // check if room exists
         final roomId = message.room.id;
         // write to db
@@ -129,16 +128,13 @@ class RoomManager {
   }
 
   Future<List<Room>> getAllRooms() async {
-    // todo get db rooms
     final db = _connection.db;
 
     return db.getRooms();
   }
 
   Future<void> syncDbRooms(List<Room> rooms) async {
-    // todo get db rooms
     final db = _connection.db;
-
     await db.insertOrUpdateInboxByRooms(rooms);
   }
 
@@ -165,7 +161,6 @@ class RoomManager {
             unreadCount: unreadCount,
             preview: message.text,
             lastMessage: message);
-
         return room;
       }).toList();
     } else {
@@ -199,9 +194,14 @@ class RoomManager {
     _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
     try {
       await _connection.writeStanzaAsync(messageStanza);
-      await _connection.db.updateMessageStatus(newMessage.id, 1);
-      newMessage.status = Message.formatStatus(1);
-      _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+      // if message status is 0
+      final db = _connection.db;
+      final messages = await db.getMessages(clientId: newMessage.id, status: 0);
+      if (messages.isNotEmpty) {
+        await _connection.db.updateMessageStatus(newMessage.id, 1);
+        newMessage.status = Message.formatStatus(1);
+        _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
+      }
     } catch (e) {
       Log.d(TAG, 'send message error, ${newMessage.id}');
       Log.d(TAG, e.toString());
@@ -338,6 +338,13 @@ class RoomManager {
     return inboxManager.markAsRead(roomId);
   }
 
+  Future<void> markAsArchive(String roomId) async {
+    // TODO
+    await _connection.db.archiveInbox(roomId);
+    final inboxManager = _connection.getInboxModule();
+    await inboxManager.markAsArchive(roomId);
+  }
+
   Future<List<Message>> getMessages({
     String? roomId,
     int? beforeId,
@@ -391,19 +398,17 @@ class RoomManager {
 
   Future<void> syncServerMessages(
       {required String latestClientMessageId}) async {
-    print("syncServerMessages");
     final limit = 100;
-    final localMessages =
-        await _connection.db.getMessages(limit: limit, sort: 'desc');
-    // TODO
-    var isNeedSync = true;
+    final localMessages = await _connection.db
+        .getMessages(includeDeleted: true, limit: limit, sort: 'desc');
+    var isNeedSync = false;
     DateTime? startTime;
     if (localMessages.isEmpty) {
       isNeedSync = true;
     } else if (localMessages.isNotEmpty) {
       if (localMessages.last.id != latestClientMessageId) {
         isNeedSync = true;
-        // startTime = localMessages.last.createdAt;
+        startTime = localMessages.last.createdAt;
       }
     }
     if (isNeedSync) {
@@ -419,7 +424,9 @@ class RoomManager {
           diffList.add(serverMessage);
         }
       }
-
+      // diffList.forEach((element) {
+      //   print("diff message: ${element.room.id}, ${element.id}");
+      // });
       if (diffList.isNotEmpty) {
         await _connection.db
             .insertMultipleMessage(diffList, isNeedToChangeInbox: false);

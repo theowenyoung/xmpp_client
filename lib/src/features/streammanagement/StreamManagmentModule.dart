@@ -115,9 +115,7 @@ class StreamManagementModule extends Negotiator {
     // if we have a pending ack request,  fail it.
     if (streamState.nonConfirmedSentStanzas.isNotEmpty) {
       rejectUnconfirmedStanzas();
-      print("streamState.lastSentStanza ${streamState.lastSentStanza}");
-      print(
-          "streamState.nonConfirmedSentStanzas.length ${streamState.nonConfirmedSentStanzas.length}");
+
       streamState.lastSentStanza = streamState.lastSentStanza -
           streamState.nonConfirmedSentStanzas.length;
       streamState.nonConfirmedSentStanzas.clear();

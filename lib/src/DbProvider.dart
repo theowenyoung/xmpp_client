@@ -43,7 +43,7 @@ void _createTableV1(Batch batch) {
   $columnLastMessageContent TEXT NOT NULL,
   $columnLastMessageId TEXT NOT NULL,
   $columnUpdatedAt INTEGER NOT NULL,
-  $columnDeletedAt INTEGER,
+  $columnDeletedAt INTEGER NOT NULL DEFAULT 0,
   $columnArchived INTEGER NOT NULL DEFAULT 0,
   $columnMutedUntil INTEGER,
   $columnUnreadCount INTEGER NOT NULL DEFAULT 0
@@ -63,7 +63,7 @@ create table $tableMessages (
   $columnClientId TEXT NOT NULL,
   $columnCreatedAt INTEGER NOT NULL,
   $columnUpdatedAt INTEGER NOT NULL,
-  $columnDeletedAt INTEGER,
+  $columnDeletedAt INTEGER NOT NULL DEFAULT 0,
   $columnStatus INTEGER NOT NULL DEFAULT 0
   );
   )
@@ -85,11 +85,11 @@ ON $tableMessages ($columnRoomBareJid);
   ''');
   batch.execute('''
     CREATE UNIQUE INDEX message_client_unique_id_index
-ON $tableMessages ($columnClientId,ifnull($columnDeletedAt, 0));
+ON $tableMessages ($columnClientId, $columnDeletedAt);
   ''');
   batch.execute('''
     CREATE UNIQUE INDEX room_unique_id_index
-ON $tableInbox ($columnRoomBareJid,ifnull($columnDeletedAt, 0));
+ON $tableInbox ($columnRoomBareJid, $columnDeletedAt);
   ''');
 }
 
@@ -123,12 +123,12 @@ class DbProvider {
 
   Future<List<Room>> getRooms() async {
     final rooms = await db.rawQuery(
-      'SELECT $columnRoomResource,$columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt,$columnDeletedAt,$columnArchived,$columnMutedUntil,$columnUnreadCount FROM $tableInbox where $columnDeletedAt is NULL order by $columnUpdatedAt desc',
+      'SELECT $columnRoomResource,$columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt,$columnDeletedAt,$columnArchived,$columnMutedUntil,$columnUnreadCount FROM $tableInbox where $columnArchived=0 and $columnDeletedAt =0 order by $columnUpdatedAt desc',
     );
     var roomList = <Room>[];
     Log.d('room size', rooms.length.toString());
     for (var rawRoom in rooms) {
-      Log.d('rawRoom', '$rawRoom');
+      Log.w('rawRoom', '$rawRoom');
 
       final messageXmlString = rawRoom[columnLastMessageContent] as String;
       xml.XmlElement? xmlResponse;
@@ -165,9 +165,14 @@ class DbProvider {
     int? status,
     int limit = 30,
     String sort = 'desc',
+    bool? includeDeleted = false,
   }) async {
     // sqlite bug, query params can not be null
-    final nullValue = "nullxxssfdsafsdafsafsdaflkjf;dsalf@@@@";
+    final nullValue = "nullxxssfdssalf@@dd@@d";
+    var includeDeletedValue = "false";
+    if (includeDeleted == true) {
+      includeDeletedValue = "true";
+    }
     final messages = await db.query(tableMessages,
         columns: [
           columnId,
@@ -181,17 +186,19 @@ class DbProvider {
           columnSearchBody,
           columnCreatedAt,
           columnUpdatedAt,
-          columnStatus
+          columnStatus,
+          columnDeletedAt
         ],
         where:
-            '$columnDeletedAt is NULL and (?3 = "$nullValue" or $columnClientId=?3) and (?4  = "$nullValue" or $columnStatus=?4) and (?5  = "$nullValue" or $columnCreatedAt<?5) and (?6  = "$nullValue" or $columnUpdatedAt<?6) and (?1  = "$nullValue" or $columnRoomBareJid=?1) and (?2  = "$nullValue" or $columnId<?2)',
+            "(?7 = 'true' or $columnDeletedAt =0) and (?3 = '$nullValue' or $columnClientId=?3) and (?4  = '$nullValue' or $columnStatus=?4) and (?5  = '$nullValue' or $columnCreatedAt<?5) and (?6  = '$nullValue' or $columnUpdatedAt<?6) and (?1  = '$nullValue' or $columnRoomBareJid=?1) and (?2  = '$nullValue' or $columnId<?2)",
         whereArgs: [
           roomId ?? nullValue,
           beforeId ?? nullValue,
           clientId ?? nullValue,
           status ?? nullValue,
           endTime ?? nullValue,
-          endUpdatedTime ?? nullValue
+          endUpdatedTime ?? nullValue,
+          includeDeletedValue
         ],
         orderBy: "$columnId $sort",
         limit: limit);
@@ -203,8 +210,9 @@ class DbProvider {
           rawMessage[columnCreatedAt] as int);
       final messageDbId = rawMessage[columnId] as int;
       final messageStatus = rawMessage[columnStatus] as int;
-      Log.d(TAG,
-          '$messageDbId, $createdAt,  $messageXmlString, status: $messageStatus');
+
+      Log.w(TAG,
+          '${rawMessage[columnRoomBareJid]}, $messageDbId, ${rawMessage[columnClientId]}, ${rawMessage[columnDeletedAt]} $createdAt,  $messageXmlString, status: $messageStatus');
 
       xml.XmlElement? xmlResponse;
       try {
@@ -262,13 +270,27 @@ class DbProvider {
         messages.last.toStanza().buildXmlString(),
         messages.last.id,
         messages.last.createdAt.millisecondsSinceEpoch,
-        null,
+        0,
         0,
         null,
         0
       ];
       await db.rawInsert(sql, values);
     }
+  }
+
+  Future<void> archiveInbox(String roomId) async {
+    final sql =
+        'update $tableInbox set $columnArchived=1 where $columnRoomBareJid=?1';
+    final values = [roomId];
+    await db.rawUpdate(sql, values);
+    // delete messages
+
+    await db.update(
+        tableMessages, {"deleted_at": DateTime.now().millisecondsSinceEpoch},
+        where: "$columnRoomBareJid=?",
+        whereArgs: [roomId],
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> updateInboxUnreadCount(String roomId,
@@ -323,7 +345,7 @@ class DbProvider {
         latestMessageContent,
         room.lastMessage!.id,
         room.updatedAt.millisecondsSinceEpoch,
-        null,
+        0,
         0,
         null,
         room.unreadCount,
@@ -363,7 +385,7 @@ class DbProvider {
       latestMessageContent,
       message.id,
       message.createdAt.millisecondsSinceEpoch,
-      null,
+      0,
       0,
       null,
       message.room.id,

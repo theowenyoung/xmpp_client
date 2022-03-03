@@ -82,12 +82,12 @@ class PingManager {
       // todo
       try {
         await rawPing();
-        print("ping success");
+        // print("ping success");
         retryCount = 0;
         // next
         ping();
       } catch (e) {
-        print("ping fail");
+        // print("ping fail");
         if (retryCount < maxRetryCount) {
           retryCount++;
           Log.i(TAG, 'retry $retryCount');

@@ -29,6 +29,11 @@ class Room {
     unreadCount = 0;
   }
 
+  @override
+  String toString() {
+    return 'Room{id: $id, resource: $resource, updatedAt: $updatedAt, preview: $preview, unreadCount: $unreadCount}';
+  }
+
   String toUniqueId() {
     return '$id-$resource-$updatedAt-$preview-$unreadCount-${lastMessage?.id}';
   }

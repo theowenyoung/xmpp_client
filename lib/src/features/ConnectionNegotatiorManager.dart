@@ -166,7 +166,7 @@ class ConnectionNegotiatorManager {
   }
 
   void addFeatures(List<Feature> supportedFeatures) {
-    Log.e(TAG,
+    Log.d(TAG,
         'ADDING FEATURES count: ${supportedFeatures.length} ${supportedFeatures.map((v) => v.xmppVar).toList()}');
     supportedNegotiatorList.forEach((negotiator) {
       var matchingNonzas = negotiator.match(supportedFeatures);

@@ -3,7 +3,7 @@ import 'dart:developer';
 class Log {
   static LogLevel logLevel = LogLevel.INFO;
 
-  static bool logXmpp = true;
+  static bool logXmpp = false;
   static bool logPing = false;
 
   static void v(String tag, String message) {

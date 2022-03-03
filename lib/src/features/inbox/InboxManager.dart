@@ -1,4 +1,6 @@
+import 'package:xmpp_stone/src/elements/forms/FieldElement.dart';
 import 'package:xmpp_stone/src/elements/forms/QueryElement.dart';
+import 'package:xmpp_stone/src/elements/forms/XElement.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/InboxNegotiator.dart';
 import '../../Connection.dart';
 import '../../elements/stanzas/AbstractStanza.dart';
@@ -6,6 +8,7 @@ import '../../elements/stanzas/IqStanza.dart';
 import 'dart:async';
 import '../../elements/forms/InboxElement.dart';
 import 'package:xmpp_stone/src/elements/XmppAttribute.dart';
+import 'package:xmpp_stone/src/elements/XmppElement.dart';
 
 class InboxManager {
   static const TAG = 'InboxManager';
@@ -45,6 +48,16 @@ class InboxManager {
     var query = InboxElement();
     query.setQueryId(queryId);
     iqStanza.addChild(query);
+    // add archive child
+    var xElement = XElement();
+    xElement.setType(FormType.FORM);
+    xElement.setNs("jabber:x:data");
+    var fieldElement = FieldElement.build(
+        varAttr: 'archive', typeAttr: "boolean", value: "false");
+    xElement.addField(fieldElement);
+
+    query.addChild(xElement);
+    // print("queryAllInbox: ${iqStanza.buildXmlString()}");
     var completer = Completer<QueryResult>();
     _connection.writeQueryStanza(iqStanza, completer);
     return completer.future;
@@ -61,6 +74,23 @@ class InboxManager {
     query.setXmlns('erlang-solutions.com:xmpp:inbox:0#conversation');
     query.addAttribute(XmppAttribute('jid', roomId));
     query.addRead();
+    iqStanza.addChild(query);
+    var completer = Completer<QueryResult>();
+    _connection.writeQueryStanza(iqStanza, completer);
+    return completer.future;
+  }
+
+  Future<QueryResult> markAsArchive(String roomId) async {
+    final queryId = AbstractStanza.getRandomId();
+    final iqId = AbstractStanza.getRandomId();
+    // TODO inbox server bug, not respect queryId
+    // https://github.com/esl/MongooseIM/issues/3423
+    var iqStanza = IqStanza(iqId, IqStanzaType.SET, queryId: iqId);
+    var query = QueryElement();
+    query.setQueryId(queryId);
+    query.setXmlns('erlang-solutions.com:xmpp:inbox:0#conversation');
+    query.addAttribute(XmppAttribute('jid', roomId));
+    query.addArchive();
     iqStanza.addChild(query);
     var completer = Completer<QueryResult>();
     _connection.writeQueryStanza(iqStanza, completer);

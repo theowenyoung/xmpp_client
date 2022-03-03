@@ -18,6 +18,13 @@ class QueryElement extends XmppElement {
     addChild(readElement);
   }
 
+  void addArchive() {
+    final readElement = XmppElement();
+    readElement.name = 'archive';
+    readElement.textValue = 'true';
+    addChild(readElement);
+  }
+
   void setXmlns(String xmlns) {
     addAttribute(XmppAttribute('xmlns', xmlns));
   }

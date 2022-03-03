@@ -13,8 +13,7 @@ class XmppAccountSettings {
   int reconnectionTimeout = 1000;
   bool ackEnabled = true;
   bool smResumable = true;
-  // TODO
-  bool pingEnabled = false;
+  bool pingEnabled = true;
   late String dbPath;
   XmppAccountSettings(
     this.name,
@@ -25,7 +24,7 @@ class XmppAccountSettings {
     this.host,
     this.resource,
   }) {
-    dbPath = 'xmpp_db17_for_$username@$domain.db';
+    dbPath = 'xmpp_db20_for_$username@$domain.db';
   }
 
   Jid get fullJid => Jid(username, domain, resource);
