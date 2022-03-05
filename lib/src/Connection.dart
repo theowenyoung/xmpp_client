@@ -9,6 +9,7 @@ import 'package:xmpp_stone/src/elements/nonzas/Nonza.dart';
 import 'package:xmpp_stone/src/elements/stanzas/IqStanza.dart';
 import 'package:xmpp_stone/src/features/ConnectionNegotatiorManager.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/CarbonsNegotiator.dart';
+import 'package:xmpp_stone/src/features/PushManager.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/MAMNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/ServiceDiscoveryNegotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/InboxNegotiator.dart';
@@ -16,7 +17,6 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common/sqflite_dev.dart';
 import 'package:xmpp_stone/src/parser/StanzaParser.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 enum XmppConnectionState {
   Idle,
@@ -163,6 +163,7 @@ class Connection {
     RoomManager.getInstance(this);
     connectionNegotatiorManager = ConnectionNegotiatorManager(this, account);
     reconnectionManager = ReconnectionManager(this);
+    PushManager.getInstance(this);
   }
   Future<void> init() async {
     // init sqlite
@@ -220,6 +221,7 @@ xml:lang='zh'
       setState(XmppConnectionState.Reconnecting);
       PingManager.getInstance(this).rawPing().then((_) {
         // success ping
+        setState(XmppConnectionState.Resumed);
       }).catchError((e) {
         // error
         openSocket();
@@ -247,12 +249,15 @@ xml:lang='zh'
     } else {
       connectionNegotatiorManager.initReconnectNegotiatorList();
     }
+
+    if (_socket != null) {
+      // do nothing
+      _socket!.close();
+      _socket = null;
+    }
+
     setState(XmppConnectionState.SocketOpening);
     try {
-      if (_socket != null) {
-        _socket!.close();
-        _socket = null;
-      }
       await Socket.connect(account.host ?? account.domain, account.port,
               timeout: Duration(seconds: 10))
           .then((Socket socket) {
@@ -298,6 +303,10 @@ xml:lang='zh'
     }
     firstAuthenticated = false;
     authenticated = false;
+    if (_socket != null) {
+      _socket!.close();
+      _socket = null;
+    }
   }
 
   /// Dispose of the connection so stops all activities and cannot be re-used.
@@ -638,7 +647,18 @@ xml:lang='zh'
   }
 
   void handleConnectionError(String error) {
+    if (_socket != null) {
+      _socket!.close();
+      _socket = null;
+    }
     handleCloseState();
+  }
+
+  void closeSocket() {
+    if (_socket != null) {
+      _socket!.close();
+      _socket = null;
+    }
   }
 
   void handleCloseState() {

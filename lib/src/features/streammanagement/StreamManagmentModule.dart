@@ -213,6 +213,9 @@ class StreamManagementModule extends Negotiator {
 
   void handleEnabled(Nonza nonza) {
     streamState.streamManagementEnabled = true;
+    // reset
+    streamState.lastReceivedStanza = 0;
+    streamState.lastSentStanza = 0;
     var resume = nonza.getAttribute('resume');
     if (resume != null && resume.value == 'true') {
       streamState.streamResumeEnabled = true;

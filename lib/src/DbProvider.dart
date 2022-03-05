@@ -126,9 +126,9 @@ class DbProvider {
       'SELECT $columnRoomResource,$columnRoomBareJid,$columnLastMessageContent,$columnLastMessageId,$columnUpdatedAt,$columnDeletedAt,$columnArchived,$columnMutedUntil,$columnUnreadCount FROM $tableInbox where $columnArchived=0 and $columnDeletedAt =0 order by $columnUpdatedAt desc',
     );
     var roomList = <Room>[];
-    Log.d('room size', rooms.length.toString());
+    Log.v('room size', rooms.length.toString());
     for (var rawRoom in rooms) {
-      Log.w('rawRoom', '$rawRoom');
+      Log.v('rawRoom', '$rawRoom');
 
       final messageXmlString = rawRoom[columnLastMessageContent] as String;
       xml.XmlElement? xmlResponse;
@@ -211,7 +211,7 @@ class DbProvider {
       final messageDbId = rawMessage[columnId] as int;
       final messageStatus = rawMessage[columnStatus] as int;
 
-      Log.w(TAG,
+      Log.v(TAG,
           '${rawMessage[columnRoomBareJid]}, $messageDbId, ${rawMessage[columnClientId]}, ${rawMessage[columnDeletedAt]} $createdAt,  $messageXmlString, status: $messageStatus');
 
       xml.XmlElement? xmlResponse;

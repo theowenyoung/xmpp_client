@@ -139,7 +139,7 @@ class PresenceManager implements PresenceApi {
       _presenceStreamController.add(PresenceData(
           presenceStanza.show, presenceStanza.status, presenceStanza.fromJid));
     } else {
-      switch (presenceStanza.type) {
+      switch (presenceStanza.type!) {
         case PresenceType.SUBSCRIBE:
           var subscriptionEvent = SubscriptionEvent();
           subscriptionEvent.type = SubscriptionEventType.REQUEST;
