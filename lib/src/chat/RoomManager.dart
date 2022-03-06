@@ -605,6 +605,10 @@ class RoomManager {
         break;
 
       default:
+        _connectionUpdatedStreamController.add(
+          Event(ConnectionState.connecting, 'Connecting...'),
+        );
+        break;
     }
   }
 }

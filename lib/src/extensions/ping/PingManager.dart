@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:xmpp_stone/src/elements/stanzas/IqStanza.dart';
 import 'package:xmpp_stone/xmpp_stone.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class PingManager {
   static String TAG = 'PingManager';
@@ -69,7 +70,7 @@ class PingManager {
     iqElement.addChild(pingElement);
     await _connection.getIq(iqElement,
         timeout: Duration(
-          seconds: 5,
+          seconds: 8,
         ),
         addToOutStream: true);
   }
@@ -78,7 +79,7 @@ class PingManager {
     // check is connection is opened
 
     // <ping xmlns="urn:xmpp:ping"/>
-    timer = Timer(Duration(seconds: 10), () async {
+    timer = Timer(Duration(seconds: 15), () async {
       // todo
       try {
         await rawPing();
@@ -96,8 +97,8 @@ class PingManager {
         } else {
           //lose connection
           // close
-          Log.i(TAG, 'ping failed, close connection');
-          _connection.close();
+          Log.i(TAG, "lose connection, forcefullyClosed");
+          _connection.setState(XmppConnectionState.ForcefullyClosed);
         }
       }
     });

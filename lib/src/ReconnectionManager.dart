@@ -69,17 +69,26 @@ class ReconnectionManager {
     }
   }
 
-  void handleReconnection() {
+  Future<void> handleReconnection() async {
     if (timer != null) {
       timer!.cancel();
     }
     if (counter < totalReconnections) {
-      timer = Timer(Duration(milliseconds: timeOutInMs), _connection.reconnect);
-      timeOutInMs += timeOutInMs;
-      Log.d(TAG, 'TimeOut is: $timeOutInMs reconnection counter $counter');
-      counter++;
+      // if has network
+      final currentConnectivity = await Connectivity().checkConnectivity();
+
+      if (currentConnectivity != ConnectivityResult.none) {
+        timer =
+            Timer(Duration(milliseconds: timeOutInMs), _connection.reconnect);
+        timeOutInMs += timeOutInMs;
+        Log.d(TAG, 'TimeOut is: $timeOutInMs reconnection counter $counter');
+        counter++;
+      } else {
+        timer = Timer(Duration(milliseconds: timeOutInMs), handleReconnection);
+      }
     } else {
-      _connection.close();
+      // _connection.close();
+      Log.w(TAG, 'reconnect failed');
     }
   }
 

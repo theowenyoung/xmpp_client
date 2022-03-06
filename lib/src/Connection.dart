@@ -210,13 +210,9 @@ xml:lang='zh'
   }
 
   void reconnect() {
-    if (_state == XmppConnectionState.Reconnecting) {
-      return;
-    }
-
     if (_state == XmppConnectionState.Closed) {
       connect();
-    } else {
+    } else if (_state == XmppConnectionState.ForcefullyClosed) {
       // first try to ping
       setState(XmppConnectionState.Reconnecting);
       PingManager.getInstance(this).rawPing().then((_) {
