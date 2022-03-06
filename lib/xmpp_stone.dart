@@ -15,6 +15,7 @@ export 'src/roster/RosterManager.dart';
 export 'src/chat/Room.dart';
 export 'src/chat/Message.dart';
 export 'src/chat/RoomManager.dart';
+export 'src/features/PushManager.dart';
 export 'src/features/inbox/InboxManager.dart';
 export 'src/extensions/ping/PingManager.dart';
 export 'src/logger/Log.dart';

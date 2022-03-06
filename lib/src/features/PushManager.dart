@@ -11,8 +11,6 @@ import 'package:xmpp_stone/src/elements/forms/FieldElement.dart';
 class PushManager {
   final Connection _connection;
 
-  late StreamSubscription<XmppConnectionState> _xmppConnectionStateSubscription;
-
   static Map<Connection, PushManager> instances = {};
 
   static PushManager getInstance(Connection connection) {
@@ -25,28 +23,32 @@ class PushManager {
   }
 
   static void removeInstance(Connection connection) {
-    instances[connection]?._xmppConnectionStateSubscription.cancel();
     instances.remove(connection);
   }
 
-  PushManager(this._connection) {
-    _xmppConnectionStateSubscription =
-        _connection.connectionStateStream.listen(_connectionStateHandler);
-  }
+  PushManager(this._connection);
+  Future<void> disablePush({String? deviceId}) async {
+    // <iq type='set' id='x44'>
+    //   <disable xmlns='urn:xmpp:push:0' jid='pubsub.mypubsub.com' node='punsub_node_for_my_private_iphone'/>
+    // </iq>
+    final iq = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.SET);
 
-  void _connectionStateHandler(XmppConnectionState state) {
-    if (state == XmppConnectionState.Ready) {
-      //_getRosters();
-      // _sendInitialPush().then((_) {
-      //   print("PushManager: _sendInitialPush success");
-      // }).catchError((e) {
-      //   print("PushManager: _sendInitialPush error");
-      //   print(e);
-      // });
+    final disableElement = XmppElement("disable", null, "urn:xmpp:push:0");
+    disableElement.addAttribute(
+        XmppAttribute("jid", "pubsub.${_connection.account.domain}"));
+    if (deviceId != null) {
+      disableElement.addAttribute(XmppAttribute("node", deviceId));
     }
+    iq.addChild(disableElement);
+    print("disable push iq: ${iq.buildXmlString()}");
+    await _connection.writeStanzaAsync(iq);
   }
 
-  Future<void> _sendInitialPush() async {
+  Future<void> initPush({
+    required String service,
+    required String deviceId,
+    bool? silent = false,
+  }) async {
     // https://xmpp.org/extensions/xep-0357.html#example-9
     // https://esl.github.io/MongooseDocs/latest/tutorials/push-notifications/Push-notifications-client-side/#enabling-push-notifications
     // <iq type='set' id='x43'>
@@ -64,7 +66,7 @@ class PushManager {
     enabledElement.addAttribute(
         XmppAttribute("jid", "pubsub.${_connection.account.domain}"));
 
-    enabledElement.addAttribute(XmppAttribute("node", "1507bfd3f730fc257e3"));
+    enabledElement.addAttribute(XmppAttribute("node", deviceId));
     iq.addChild(enabledElement);
     final xElement = XElement();
     xElement.setNs("jabber:x:data");
@@ -73,14 +75,14 @@ class PushManager {
     xElement.addField(FieldElement.build(
         varAttr: "FORM_TYPE",
         value: "http://jabber.org/protocol/pubsub#publish-options"));
-    xElement.addField(FieldElement.build(varAttr: "service", value: "jiguang"));
+    xElement.addField(FieldElement.build(varAttr: "service", value: service));
     xElement
-        .addField(FieldElement.build(varAttr: "device_id", value: "9999999"));
-    xElement.addField(FieldElement.build(varAttr: "silent", value: "false"));
-    xElement
-        .addField(FieldElement.build(varAttr: "topic", value: "test_topic"));
-    xElement.addField(FieldElement.build(varAttr: "priority", value: "10"));
-
+        .addField(FieldElement.build(varAttr: "device_id", value: deviceId));
+    xElement.addField(FieldElement.build(
+        varAttr: "silent", value: silent == true ? "true" : "false"));
+    // xElement
+    //     .addField(FieldElement.build(varAttr: "topic", value: "test_topic"));
+    // xElement.addField(FieldElement.build(varAttr: "priority", value: "10"));
     // topic
     enabledElement.addChild(xElement);
     print("push iq: ${iq.buildXmlString()}");
