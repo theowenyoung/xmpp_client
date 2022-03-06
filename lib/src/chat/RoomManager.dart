@@ -183,6 +183,12 @@ class RoomManager {
     final db = _connection.db;
     final messages = await db.getMessages(clientId: messageClientId);
     if (messages.isNotEmpty) {
+      await _connection.db.updateMessageStatus(messages[0].id, 0);
+      final newMessage = messages[0];
+      newMessage.status = Message.formatStatus(0);
+      _roomMessageUpdatedStreamController
+          .add(Event(messages[0].room.id, newMessage));
+
       // change to sending status
       await rawSendMessage(messages[0].room.id, messages[0]);
     }
@@ -193,11 +199,12 @@ class RoomManager {
 
     _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
     try {
-      await _connection.writeStanzaAsync(messageStanza);
       // if message status is 0
       final db = _connection.db;
       final messages = await db.getMessages(clientId: newMessage.id, status: 0);
       if (messages.isNotEmpty) {
+        await _connection.writeStanzaAsync(messageStanza);
+
         await _connection.db.updateMessageStatus(newMessage.id, 1);
         newMessage.status = Message.formatStatus(1);
         _roomMessageUpdatedStreamController.add(Event(roomId, newMessage));
