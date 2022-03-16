@@ -47,6 +47,7 @@ class PushManager {
   Future<void> initPush({
     required String service,
     required String deviceId,
+    required String mode,
     bool? silent = false,
   }) async {
     // https://xmpp.org/extensions/xep-0357.html#example-9
@@ -78,11 +79,13 @@ class PushManager {
     xElement.addField(FieldElement.build(varAttr: "service", value: service));
     xElement
         .addField(FieldElement.build(varAttr: "device_id", value: deviceId));
+    xElement.addField(FieldElement.build(varAttr: "mode", value: mode));
+
     xElement.addField(FieldElement.build(
         varAttr: "silent", value: silent == true ? "true" : "false"));
-    // xElement
-    //     .addField(FieldElement.build(varAttr: "topic", value: "test_topic"));
-    // xElement.addField(FieldElement.build(varAttr: "priority", value: "10"));
+    // xElement.addField(
+    // FieldElement.build(varAttr: "click_action", value: clickAction));
+    xElement.addField(FieldElement.build(varAttr: "priority", value: "high"));
     // topic
     enabledElement.addChild(xElement);
     print("push iq: ${iq.buildXmlString()}");

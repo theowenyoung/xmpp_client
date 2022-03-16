@@ -209,6 +209,16 @@ xml:lang='zh'
     return response1;
   }
 
+  void resetAndReconnect() {
+    if (_socket != null) {
+      close();
+    }
+    // delay 1 second
+    Future.delayed(Duration(seconds: 1)).then((_) {
+      reconnect();
+    });
+  }
+
   void reconnect() {
     if (_state == XmppConnectionState.Closed) {
       connect();

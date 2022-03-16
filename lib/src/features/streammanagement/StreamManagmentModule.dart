@@ -185,12 +185,15 @@ class StreamManagementModule extends Negotiator {
           Log.d(TAG, 'Resuming failed');
           streamState = StreamState();
           state = NegotiatorState.DONE;
-          negotiatorStateStreamController = StreamController();
-          state = NegotiatorState.IDLE; //we will try again
+          // reconnect total
+          _connection.resetAndReconnect();
+          // negotiatorStateStreamController = StreamController();
+          // state = NegotiatorState.IDLE; //we will try again
         } else {
           Log.d(TAG,
               'StreamManagmentFailed'); //try to send an error down to client
           state = NegotiatorState.DONE;
+          _connection.resetAndReconnect();
         }
       }
     } else if (state == NegotiatorState.DONE) {
